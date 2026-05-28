@@ -1,0 +1,895 @@
+[
+    {
+        "id": "244543b95a53346f",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "5e41c5b903f00e3f",
+        "type": "tab",
+        "label": "Dashboard",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "e2b71a6194c6ce11",
+        "type": "subflow",
+        "name": "Subflow 1",
+        "info": "",
+        "in": [],
+        "out": []
+    },
+    {
+        "id": "bce058223a66229f",
+        "type": "mqtt-broker",
+        "name": "sensor_broker",
+        "broker": "localhost",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "53c23648457d2f0d",
+        "type": "ui-base",
+        "name": "My Dashboard",
+        "path": "/dashboard",
+        "appIcon": "",
+        "includeClientData": true,
+        "acceptsClientConfig": [
+            "ui-notification",
+            "ui-control"
+        ],
+        "showPathInSidebar": false,
+        "headerContent": "page",
+        "navigationStyle": "default",
+        "titleBarStyle": "default",
+        "showReconnectNotification": true,
+        "notificationDisplayTime": 1,
+        "showDisconnectNotification": true,
+        "allowInstall": false
+    },
+    {
+        "id": "5787bbe43ef585a5",
+        "type": "ui-theme",
+        "name": "Default Theme",
+        "colors": {
+            "surface": "#ffffff",
+            "primary": "#0094CE",
+            "bgPage": "#eeeeee",
+            "groupBg": "#ffffff",
+            "groupOutline": "#cccccc"
+        },
+        "sizes": {
+            "density": "default",
+            "pagePadding": "12px",
+            "groupGap": "12px",
+            "groupBorderRadius": "4px",
+            "widgetGap": "12px"
+        }
+    },
+    {
+        "id": "6e7f1294280fb6e0",
+        "type": "ui-page",
+        "name": "Page 1",
+        "ui": "53c23648457d2f0d",
+        "path": "/page1",
+        "icon": "home",
+        "layout": "grid",
+        "theme": "5787bbe43ef585a5",
+        "breakpoints": [
+            {
+                "name": "Default",
+                "px": 0,
+                "cols": 3
+            },
+            {
+                "name": "Tablet",
+                "px": 576,
+                "cols": 6
+            },
+            {
+                "name": "Small Desktop",
+                "px": 768,
+                "cols": 9
+            },
+            {
+                "name": "Desktop",
+                "px": 1024,
+                "cols": 12
+            }
+        ],
+        "order": 1,
+        "className": "",
+        "visible": true,
+        "disabled": "false"
+    },
+    {
+        "id": "5f34f4547222e78c",
+        "type": "ui-group",
+        "name": "Group 1",
+        "page": "6e7f1294280fb6e0",
+        "width": 6,
+        "height": 1,
+        "order": 1,
+        "showTitle": true,
+        "className": "",
+        "visible": "true",
+        "disabled": "false",
+        "groupType": "default"
+    },
+    {
+        "id": "946a621751449b56",
+        "type": "mqtt out",
+        "z": "244543b95a53346f",
+        "name": "",
+        "topic": "sensor/machine_1",
+        "qos": "0",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "bce058223a66229f",
+        "x": 1050,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "a0a85ae533c5be8e",
+        "type": "mqtt in",
+        "z": "244543b95a53346f",
+        "name": "",
+        "topic": "sensor/#",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "bce058223a66229f",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 460,
+        "y": 500,
+        "wires": [
+            [
+                "aefe7bdf2a09982b"
+            ]
+        ]
+    },
+    {
+        "id": "8338fdb3121cceeb",
+        "type": "debug",
+        "z": "244543b95a53346f",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 940,
+        "y": 500,
+        "wires": []
+    },
+    {
+        "id": "fa82c90350608e60",
+        "type": "inject",
+        "z": "244543b95a53346f",
+        "name": "temp_sensor",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 130,
+        "y": 120,
+        "wires": [
+            [
+                "ea69fafa038357bf"
+            ]
+        ]
+    },
+    {
+        "id": "1a9d77851cf1e81f",
+        "type": "inject",
+        "z": "244543b95a53346f",
+        "name": "vibration_sensor",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 140,
+        "y": 160,
+        "wires": [
+            [
+                "3f1e3a8840517881"
+            ]
+        ]
+    },
+    {
+        "id": "f726a0c268e0fb95",
+        "type": "inject",
+        "z": "244543b95a53346f",
+        "name": "rpm_sensor",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 130,
+        "y": 200,
+        "wires": [
+            [
+                "2afc1b244f3e5ea3"
+            ]
+        ]
+    },
+    {
+        "id": "307a95260af6bae1",
+        "type": "inject",
+        "z": "244543b95a53346f",
+        "name": "current_sensor",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 140,
+        "y": 240,
+        "wires": [
+            [
+                "3959da65ec6d2642"
+            ]
+        ]
+    },
+    {
+        "id": "e32624c8e0628ed8",
+        "type": "inject",
+        "z": "244543b95a53346f",
+        "name": "voltage_sensor",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 140,
+        "y": 280,
+        "wires": [
+            [
+                "d2d6cbbeaae25cc5"
+            ]
+        ]
+    },
+    {
+        "id": "ea69fafa038357bf",
+        "type": "function",
+        "z": "244543b95a53346f",
+        "name": "temp_function",
+        "func": "msg.topic = \"temperature\";\nmsg.payload = 60 + 5*Math.random();\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 120,
+        "wires": [
+            [
+                "f9b24d394644801a"
+            ]
+        ]
+    },
+    {
+        "id": "3f1e3a8840517881",
+        "type": "function",
+        "z": "244543b95a53346f",
+        "name": "vibration_function",
+        "func": "msg.topic = \"vibration\";\nmsg.payload = 5 + 2*Math.random();\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 370,
+        "y": 160,
+        "wires": [
+            [
+                "f9b24d394644801a"
+            ]
+        ]
+    },
+    {
+        "id": "2afc1b244f3e5ea3",
+        "type": "function",
+        "z": "244543b95a53346f",
+        "name": "rpm_function",
+        "func": "msg.topic = \"rpm\";\nmsg.payload = 1500 + Math.random()*50;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 350,
+        "y": 200,
+        "wires": [
+            [
+                "f9b24d394644801a"
+            ]
+        ]
+    },
+    {
+        "id": "3959da65ec6d2642",
+        "type": "function",
+        "z": "244543b95a53346f",
+        "name": "current_function",
+        "func": "msg.topic = \"current\";\nmsg.payload = 10 + 3*Math.random();\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 240,
+        "wires": [
+            [
+                "f9b24d394644801a"
+            ]
+        ]
+    },
+    {
+        "id": "d2d6cbbeaae25cc5",
+        "type": "function",
+        "z": "244543b95a53346f",
+        "name": "voltage_function",
+        "func": "msg.topic = \"voltage\";\nmsg.payload = 220 + Math.random()*5;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 280,
+        "wires": [
+            [
+                "f9b24d394644801a"
+            ]
+        ]
+    },
+    {
+        "id": "f9b24d394644801a",
+        "type": "join",
+        "z": "244543b95a53346f",
+        "name": "",
+        "mode": "custom",
+        "build": "object",
+        "property": "payload",
+        "propertyType": "msg",
+        "key": "topic",
+        "joiner": "\\n",
+        "joinerType": "str",
+        "useparts": true,
+        "accumulate": true,
+        "timeout": "",
+        "count": "5",
+        "reduceRight": false,
+        "reduceExp": "",
+        "reduceInit": "",
+        "reduceInitType": "",
+        "reduceFixup": "",
+        "x": 590,
+        "y": 200,
+        "wires": [
+            [
+                "dd9fc848f1149905"
+            ]
+        ]
+    },
+    {
+        "id": "dd9fc848f1149905",
+        "type": "function",
+        "z": "244543b95a53346f",
+        "name": "preprocessing_node",
+        "func": "const SMA_PERIOD = 5;\n\nconst RANGES = {\n    temperature: { min: 60, max: 65 },\n    vibration: { min: 5, max: 7 },\n    rpm: { min: 0, max: 3000 },\n    current: { min: 10, max: 13 },\n    voltage: { min: 180, max: 260 }\n};\n\nfunction sma(buffer) {\n    return buffer.reduce((a, b) => a + b, 0) / buffer.length;\n}\n\nlet lastGood = context.get(\"lastGood\") || {};\nlet buffers = context.get(\"buffers\") || {};\nlet breachCount = context.get(\"breachCount\") || {};\n\nlet data = msg.payload;\n\nfor (const sensor in RANGES) {\n    const range = RANGES[sensor];\n    let value = data[sensor];\n\n    if (value === null || value === undefined || isNaN(value)) {\n        if (lastGood[sensor] !== undefined) {\n            value = lastGood[sensor];\n        } else {\n            data[sensor] = \"\";\n            continue;\n        }\n\n        \n    } else if (value < range.min || value > range.max) {\n        if (!breachCount[sensor]) breachCount[sensor] = 0;\n        breachCount[sensor]++;\n\n        if (breachCount[sensor] >= 3) {\n            node.warn(`[${sensor}] ${breachCount[sensor]} consecutive outliers — possible sensor fault`);\n        }\n\n        if (lastGood[sensor] !== undefined) {\n            value = lastGood[sensor];\n        } else {\n            data[sensor] = \"\";\n            continue;\n        }\n\n        \n    } else {\n        breachCount[sensor] = 0;\n        lastGood[sensor] = value;\n    }\n\n    if (!buffers[sensor]) buffers[sensor] = [];\n    buffers[sensor].push(value);\n    if (buffers[sensor].length > SMA_PERIOD) buffers[sensor].shift();\n\n    data[sensor] = parseFloat(sma(buffers[sensor]).toFixed(3));\n}\n\ncontext.set(\"lastGood\", lastGood);\ncontext.set(\"buffers\", buffers);\ncontext.set(\"breachCount\", breachCount);\n\nmsg.payload = {\n    timestamp:   new Date().toISOString(),\n    temperature: data.temperature !== \"\" ? parseFloat(data.temperature.toFixed(2)) : \"\",\n    vibration:   data.vibration   !== \"\" ? parseFloat(data.vibration.toFixed(2))   : \"\",\n    rpm:         data.rpm         !== \"\" ? parseFloat(data.rpm.toFixed(2))         : \"\",\n    current:     data.current     !== \"\" ? parseFloat(data.current.toFixed(2))     : \"\",\n    voltage:     data.voltage     !== \"\" ? parseFloat(data.voltage.toFixed(2))     : \"\"\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 800,
+        "y": 200,
+        "wires": [
+            [
+                "946a621751449b56"
+            ]
+        ]
+    },
+    {
+        "id": "e63e1b3c37e1e90b",
+        "type": "comment",
+        "z": "244543b95a53346f",
+        "name": "Machine_1",
+        "info": "\n",
+        "x": 660,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "f104de9275549095",
+        "type": "comment",
+        "z": "244543b95a53346f",
+        "name": "Server",
+        "info": "",
+        "x": 670,
+        "y": 460,
+        "wires": []
+    },
+    {
+        "id": "f1b504ce7d19102b",
+        "type": "file",
+        "z": "244543b95a53346f",
+        "name": "csv_write",
+        "filename": "/home/farkhin/.node-red/logs/data_log.csv",
+        "filenameType": "str",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "encoding": "none",
+        "x": 760,
+        "y": 500,
+        "wires": [
+            [
+                "8338fdb3121cceeb"
+            ]
+        ]
+    },
+    {
+        "id": "aefe7bdf2a09982b",
+        "type": "csv",
+        "z": "244543b95a53346f",
+        "name": "",
+        "spec": "rfc",
+        "sep": ",",
+        "hdrin": true,
+        "hdrout": "once",
+        "multi": "one",
+        "ret": "\\r\\n",
+        "temp": "temp,vibration,rpm,current,voltage",
+        "skip": "0",
+        "strings": true,
+        "include_empty_strings": "",
+        "include_null_values": "",
+        "x": 610,
+        "y": 500,
+        "wires": [
+            [
+                "f1b504ce7d19102b"
+            ]
+        ]
+    },
+    {
+        "id": "b55f5ec270496c26",
+        "type": "mqtt in",
+        "z": "5e41c5b903f00e3f",
+        "name": "",
+        "topic": "sensor/#",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "bce058223a66229f",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 360,
+        "y": 120,
+        "wires": [
+            [
+                "ae835d68383accaf",
+                "f9f702496bd388b6"
+            ]
+        ]
+    },
+    {
+        "id": "ae835d68383accaf",
+        "type": "debug",
+        "z": "5e41c5b903f00e3f",
+        "name": "debug 2",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 720,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "b78e25bd09b34b82",
+        "type": "comment",
+        "z": "5e41c5b903f00e3f",
+        "name": "Server",
+        "info": "",
+        "x": 450,
+        "y": 60,
+        "wires": []
+    },
+    {
+        "id": "a88978f8c1b355ac",
+        "type": "ui-chart",
+        "z": "5e41c5b903f00e3f",
+        "group": "5f34f4547222e78c",
+        "name": "Temp chart",
+        "label": "chart",
+        "order": 1,
+        "chartType": "line",
+        "category": "topic",
+        "categoryType": "msg",
+        "xAxisLabel": "",
+        "xAxisProperty": "",
+        "xAxisPropertyType": "timestamp",
+        "xAxisType": "time",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "°C",
+        "yAxisProperty": "payload.temperature",
+        "yAxisPropertyType": "msg",
+        "ymin": "0",
+        "ymax": "100",
+        "bins": 10,
+        "action": "append",
+        "stackSeries": false,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": 1,
+        "removeOlderUnit": "1",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": 6,
+        "height": 8,
+        "className": "",
+        "interpolation": "linear",
+        "x": 730,
+        "y": 200,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f9f702496bd388b6",
+        "type": "json",
+        "z": "5e41c5b903f00e3f",
+        "name": "",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 390,
+        "y": 240,
+        "wires": [
+            [
+                "1444a0e08cd74f49"
+            ]
+        ]
+    },
+    {
+        "id": "59311af96ab8e20a",
+        "type": "ui-chart",
+        "z": "5e41c5b903f00e3f",
+        "group": "5f34f4547222e78c",
+        "name": "Vibration chart",
+        "label": "chart",
+        "order": 4,
+        "chartType": "line",
+        "category": "topic",
+        "categoryType": "msg",
+        "xAxisLabel": "",
+        "xAxisProperty": "",
+        "xAxisPropertyType": "timestamp",
+        "xAxisType": "time",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "",
+        "yAxisProperty": "payload.vibration",
+        "yAxisPropertyType": "msg",
+        "ymin": "",
+        "ymax": "",
+        "bins": 10,
+        "action": "append",
+        "stackSeries": false,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": 1,
+        "removeOlderUnit": "1",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": 6,
+        "height": 8,
+        "className": "",
+        "interpolation": "linear",
+        "x": 740,
+        "y": 240,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "8bbbcce193c44a9e",
+        "type": "ui-chart",
+        "z": "5e41c5b903f00e3f",
+        "group": "5f34f4547222e78c",
+        "name": "RPM chart",
+        "label": "chart",
+        "order": 3,
+        "chartType": "line",
+        "category": "topic",
+        "categoryType": "msg",
+        "xAxisLabel": "",
+        "xAxisProperty": "",
+        "xAxisPropertyType": "timestamp",
+        "xAxisType": "time",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "RPM",
+        "yAxisProperty": "payload.rpm",
+        "yAxisPropertyType": "msg",
+        "ymin": "0",
+        "ymax": "2000",
+        "bins": 10,
+        "action": "append",
+        "stackSeries": false,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": 1,
+        "removeOlderUnit": "1",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": 6,
+        "height": 8,
+        "className": "",
+        "interpolation": "linear",
+        "x": 730,
+        "y": 280,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "a1aa7fa409379735",
+        "type": "ui-chart",
+        "z": "5e41c5b903f00e3f",
+        "group": "5f34f4547222e78c",
+        "name": "Current chart (A)",
+        "label": "chart",
+        "order": 2,
+        "chartType": "line",
+        "category": "topic",
+        "categoryType": "msg",
+        "xAxisLabel": "",
+        "xAxisProperty": "",
+        "xAxisPropertyType": "timestamp",
+        "xAxisType": "time",
+        "xAxisFormat": "",
+        "xAxisFormatType": "auto",
+        "xmin": "",
+        "xmax": "",
+        "yAxisLabel": "A",
+        "yAxisProperty": "payload.current",
+        "yAxisPropertyType": "msg",
+        "ymin": "0",
+        "ymax": "50",
+        "bins": 10,
+        "action": "append",
+        "stackSeries": false,
+        "pointShape": "circle",
+        "pointRadius": 4,
+        "showLegend": true,
+        "removeOlder": 1,
+        "removeOlderUnit": "1",
+        "removeOlderPoints": "",
+        "colors": [
+            "#0095ff",
+            "#ff0000",
+            "#ff7f0e",
+            "#2ca02c",
+            "#a347e1",
+            "#d62728",
+            "#ff9896",
+            "#9467bd",
+            "#c5b0d5"
+        ],
+        "textColor": [
+            "#666666"
+        ],
+        "textColorDefault": true,
+        "gridColor": [
+            "#e5e5e5"
+        ],
+        "gridColorDefault": true,
+        "width": 6,
+        "height": 8,
+        "className": "",
+        "interpolation": "linear",
+        "x": 750,
+        "y": 320,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "1444a0e08cd74f49",
+        "type": "function",
+        "z": "5e41c5b903f00e3f",
+        "name": "function 1",
+        "func": "let data = msg.payload;\nlet ts = new Date(data.timestamp).getTime();\n\nlet msg1 = { payload: [{ series: [\"Temperature\"], data: [[{ x: ts, y: data.temperature }]], labels: [\"\"] }] };\nlet msg2 = { payload: [{ series: [\"Vibration\"], data: [[{ x: ts, y: data.vibration }]], labels: [\"\"] }] };\nlet msg3 = { payload: [{ series: [\"RPM\"], data: [[{ x: ts, y: data.rpm }]], labels: [\"\"] }] };\nlet msg4 = { payload: [{ series: [\"Current\"], data: [[{ x: ts, y: data.current }]], labels: [\"\"] }] };\nlet msg5 = { payload: [{ series: [\"Voltage\"], data: [[{ x: ts, y: data.voltage }]], labels: [\"\"] }] };\n\nreturn [msg1, msg2, msg3, msg4, msg5];\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 540,
+        "y": 240,
+        "wires": [
+            [
+                "a88978f8c1b355ac",
+                "59311af96ab8e20a",
+                "8bbbcce193c44a9e",
+                "a1aa7fa409379735"
+            ]
+        ]
+    }
+]
