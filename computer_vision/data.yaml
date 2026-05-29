@@ -1,0 +1,17 @@
+# WASP - PPE Detection Dataset
+# YOLOv8 format
+
+path: C:\Users\User\OneDrive\STUDY\UTM KL\UTM\Project\AI_Showcase\wasp_dataset\split
+
+train: train/images
+val: val/images
+test: test/images
+
+# Number of classes
+nc: 3
+
+# Class names
+names:
+  0: helmet
+  1: head
+  2: person
