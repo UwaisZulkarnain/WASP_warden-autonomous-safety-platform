@@ -2,4 +2,4 @@ ultralytics
 opencv-python
 torch
 torchvision
-numpy12
+numpy
