@@ -1,17 +1,30 @@
-# WASP - PPE Detection Dataset
-# YOLOv8 format
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
 
-path: C:\Users\User\OneDrive\STUDY\UTM KL\UTM\Project\AI_Showcase\wasp_dataset\split
+# Construction-PPE dataset by Ultralytics
+# Documentation: https://docs.ultralytics.com/datasets/detect/construction-ppe/
+# Example usage: yolo train data=construction-ppe.yaml
+# parent
+# ├── ultralytics
+# └── datasets
+#     └── construction-ppe ← downloads here (178.4 MB)
 
-train: train/images
-val: val/images
-test: test/images
+# Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+path: construction-ppe # dataset root dir
+train: images/train # train images (relative to 'path') 1132 images
+val: images/val # val images (relative to 'path') 143 images
+test: images/test # test images (relative to 'path') 141 images
 
-# Number of classes
-nc: 3
-
-# Class names
+# Classes
 names:
   0: helmet
-  1: head
-  2: person
+  1: gloves
+  2: vest
+  3: boots
+  4: goggles
+  5: none
+  6: Person
+  7: no_helmet
+  8: no_goggle
+  9: no_gloves
+  10: no_boots
+
