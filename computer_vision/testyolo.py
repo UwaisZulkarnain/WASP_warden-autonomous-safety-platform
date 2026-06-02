@@ -1,7 +1,7 @@
 from ultralytics import YOLO
 
 model = YOLO(
-    r"best.pt"
+    r"best_construction_ppe.pt"
 )
 
 results = model.predict(
