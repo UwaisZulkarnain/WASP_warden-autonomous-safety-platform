@@ -1,11 +1,11 @@
 """
 WASP - Warden Autonomous Safety Platform
 MVP Backend for UTM FAI Showcase 2026
-Team: Uwais (Integration/Agent), Paen (IoT), Born (CV)
+Team: Uwais (Backend/Integration), Paen (IoT), Born (CV)
 
 Usage:
-    1. Generate TTS audio: python generate_tts.py
-    2. Update CONFIG section below
+    1. Generate TTS audio: python tts/generate_tts.py
+    2. Update CONFIG section below (COM port, phone, API key)
     3. Connect ESP32 to USB, XIAO to power (WiFi AP)
     4. python wasp_backend.py
     5. Open http://localhost:5000 in browser
@@ -30,24 +30,24 @@ from urllib.parse import quote
 # CHANGE THESE VALUES BEFORE RUNNING
 
 # XIAO Camera Stream (AP Mode)
-XIAO_IP = "192.168.4.1"           # Default AP IP for ESP32
+XIAO_IP = "192.168.4.1"
 XIAO_STREAM_URL = f"http://{XIAO_IP}:81/stream"
 
 # ESP32 Serial Connection
-ESP32_PORT = "COM3"               # CHANGE: Check Device Manager for your port
+ESP32_PORT = "COM3"
 ESP32_BAUD = 115200
 
 # YOLOv8 Model Path (Born trained model)
-MODEL_PATH = "best.pt"            # CHANGE if your model file is named differently
+MODEL_PATH = "computer_vision/best_construction_ppe.pt"
 
 # WhatsApp CallMeBot Settings
 # Get API key from: https://www.callmebot.com/blog/free-api-whatsapp-messages/
-SUPERVISOR_PHONE = "60123456789"  # CHANGE: Format 601xxxxxxxxx (no +, no dashes)
-CALLMEBOT_KEY = "YOUR_APIKEY"     # CHANGE: Your CallMeBot API key
+SUPERVISOR_PHONE = "60123456789"
+CALLMEBOT_KEY = "YOUR_APIKEY"
 
 # Agent Settings
-WARNING_COOLDOWN = 30             # Seconds before WhatsApp escalation
-HEAT_THRESHOLD = 35.0             # Celsius - heat stress warning
+WARNING_COOLDOWN = 30
+HEAT_THRESHOLD = 35.0
 
 # ========================== GLOBALS ==========================
 app = Flask(__name__)
@@ -67,7 +67,7 @@ sensor_data = {
 
 cv_state = {
     "helmet": False,
-    "harness": False,
+    "vest": False,
     "person": False,
     "last_update": "N/A"
 }
@@ -79,7 +79,6 @@ simulation_mode = False
 
 # ========================== DATABASE ==========================
 def init_db():
-    """Initialize SQLite database for incident logging"""
     try:
         conn = sqlite3.connect("wasp.db", check_same_thread=False)
         c = conn.cursor()
@@ -91,7 +90,6 @@ def init_db():
         print(f"[DB Error] {e}")
 
 def log_alert(alert_type, details):
-    """Log an alert to SQLite with timestamp"""
     try:
         conn = sqlite3.connect("wasp.db", check_same_thread=False)
         c = conn.cursor()
@@ -105,7 +103,6 @@ def log_alert(alert_type, details):
 
 # ========================== TTS ==========================
 def init_tts():
-    """Initialize pygame mixer for audio playback"""
     global tts_available
     try:
         import pygame
@@ -117,7 +114,6 @@ def init_tts():
         print("[TTS] Will print warnings to console instead")
 
 def speak(text):
-    """Play pre-generated warning MP3 or print to console"""
     if not tts_available:
         print(f"[TTS] {text}")
         return
@@ -141,7 +137,6 @@ def speak(text):
 
 # ========================== WHATSAPP ==========================
 def whatsapp(msg):
-    """Send WhatsApp message via CallMeBot API"""
     try:
         url = (
             f"https://api.callmebot.com/whatsapp.php?"
@@ -158,14 +153,8 @@ def whatsapp(msg):
         print(f"[WhatsApp Error] {e}")
         print(f"[WhatsApp] Would have sent: {msg}")
 
-# ========================== AGENTIC ENGINE ==========================
+# ========================== DECISION ENGINE ==========================
 def agent_engine():
-    """
-    WASP Decision Engine - Tiered Response Protocol
-    Tier 1: Verbal warning to worker (immediate)
-    Tier 2: Supervisor WhatsApp alert (after 30 seconds non-compliance)
-    Tier 3: Critical environmental alert (immediate for heat stress)
-    """
     global active_warnings
     current_time = time.time()
 
@@ -174,20 +163,17 @@ def agent_engine():
     if cv_state["person"]:
         if not cv_state["helmet"]:
             ppe_violations.append("Helmet")
-        if not cv_state["harness"]:
+        if not cv_state["vest"]:
             ppe_violations.append("Harness")
 
-    # Handle PPE violations
     if ppe_violations:
         v_key = "PPE_" + "_".join(ppe_violations)
         if v_key not in active_warnings:
-            # TIER 1: First detection - verbal warning
             active_warnings[v_key] = current_time
             items = " dan ".join(ppe_violations)
             msg = f"Perhatian! {items} tidak dipakai. Sila pakai sekarang!"
             speak(msg)
             log_alert("PPE_VIOLATION", f"Missing: {', '.join(ppe_violations)}")
-        # TIER 2: Escalation after cooldown period
         elapsed = current_time - active_warnings[v_key]
         if elapsed > WARNING_COOLDOWN and not active_warnings.get(v_key + "_esc"):
             active_warnings[v_key + "_esc"] = True
@@ -195,7 +181,6 @@ def agent_engine():
             whatsapp(msg)
             log_alert("ESCALATION", msg)
     else:
-        # Clear PPE warnings when worker becomes compliant
         for k in list(active_warnings.keys()):
             if k.startswith("PPE_"):
                 del active_warnings[k]
@@ -205,10 +190,9 @@ def agent_engine():
         v_key = "HEAT"
         if v_key not in active_warnings:
             active_warnings[v_key] = current_time
-            msg = f"Perhatian! Suhu sangat tinggi: {sensor_data['temperature']:.1f}C. Sila berehat!"
+            msg = "Perhatian! Suhu sangat tinggi. Sila berehat!"
             speak(msg)
             log_alert("HEAT_STRESS", msg)
-            # Heat stress is critical - WhatsApp immediately
             whatsapp(f"HEAT STRESS ALERT: Zone temperature {sensor_data['temperature']:.1f}C")
     else:
         if "HEAT" in active_warnings:
@@ -216,13 +200,11 @@ def agent_engine():
 
 # ========================== CV THREAD ==========================
 def cv_thread():
-    """Continuously capture video and run YOLOv8 detection"""
     global latest_frame, cv_state
 
     print(f"[CV] Connecting to camera stream: {XIAO_STREAM_URL}")
     cap = cv2.VideoCapture(XIAO_STREAM_URL)
 
-    # Fallback to laptop webcam if XIAO stream fails
     if not cap.isOpened():
         print("[CV] XIAO stream failed! Falling back to laptop webcam...")
         cap = cv2.VideoCapture(0)
@@ -239,36 +221,34 @@ def cv_thread():
             continue
 
         try:
-            # Run YOLOv8 inference
             results = model(frame, conf=0.5, verbose=False)
             annotated = results[0].plot()
 
-            # Parse detections (supports multiple naming conventions)
-            helmet = harness = person = False
+            helmet = vest = person = False
             for r in results:
                 for box in r.boxes:
                     cls = int(box.cls[0])
-                    name = model.names[cls].lower()
-
-                    if any(x in name for x in ["helmet", "hardhat", "hard_hat", "head"]):
+                    name = model.names[cls]
+                    if name == "helmet":
                         helmet = True
-                    elif any(x in name for x in ["harness", "safety_belt", "belt"]):
-                        harness = True
-                    elif any(x in name for x in ["person", "worker", "people", "man"]):
+                    elif name == "no_helmet":
+                        helmet = False
+                        person = True
+                    elif name == "vest":
+                        vest = True
+                    elif name == "Person":
                         person = True
 
             cv_state = {
                 "helmet": helmet,
-                "harness": harness,
+                "vest": vest,
                 "person": person,
                 "last_update": datetime.now().strftime("%H:%M:%S")
             }
 
-            # Update global frame for video feed
             with frame_lock:
                 latest_frame = annotated.copy()
 
-            # Run agent logic
             agent_engine()
 
         except Exception as e:
@@ -278,7 +258,6 @@ def cv_thread():
 
 # ========================== SENSOR THREAD ==========================
 def sensor_thread():
-    """Read sensor data from ESP32 via serial USB"""
     global sensor_data, simulation_mode
 
     try:
@@ -307,7 +286,6 @@ def sensor_thread():
         print("[Sensor] Running in SIMULATION mode")
         simulation_mode = True
 
-        # Simulation mode: generate fake data for testing
         while True:
             sensor_data.update({
                 "temperature": 32.0 + (5 if (int(time.time()) % 20 > 10) else 0),
@@ -361,16 +339,16 @@ HTML_TEMPLATE = """
     </style>
 </head>
 <body>
-    <div class="header">🛡️ <span>WASP</span> — Warden Autonomous Safety Platform</div>
-    <div id="alert-banner" class="alert-banner">⚠️ VIOLATION DETECTED — SPEAKING WARNING ⚠️</div>
+    <div class="header">WASP <span>Warden Autonomous Safety Platform</span></div>
+    <div id="alert-banner" class="alert-banner">VIOLATION DETECTED - SPEAKING WARNING</div>
     <div class="grid">
         <div class="panel video-container">
-            <h3>📹 Live Feed — Zone A</h3>
+            <h3>Live Feed - Zone A</h3>
             <img src="/video_feed" alt="Camera Feed" onerror="this.src='data:image/svg+xml,&lt;svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22300%22&gt;&lt;rect fill=%22%23334155%22 width=%22400%22 height=%22300%22/&gt;&lt;text fill=%22%2394a3b8%22 x=%2250%%22 y=%2250%%22 text-anchor=%22middle%22&gt;Camera Offline&lt;/text&gt;&lt;/svg&gt;'">
         </div>
         <div style="display: flex; flex-direction: column; gap: 20px;">
             <div class="panel">
-                <h3>🌡️ Environmental Sensors</h3>
+                <h3>Environmental Sensors</h3>
                 <div class="sensor-grid">
                     <div class="sensor-box"><div class="sensor-label">Temperature</div><div class="sensor-value" id="temp">--</div></div>
                     <div class="sensor-box"><div class="sensor-label">Humidity</div><div class="sensor-value" id="humid">--</div></div>
@@ -379,9 +357,9 @@ HTML_TEMPLATE = """
                 </div>
             </div>
             <div class="panel">
-                <h3>👁️ Computer Vision Detection</h3>
+                <h3>Computer Vision Detection</h3>
                 <div class="status-row"><span class="status-label">Helmet Detected</span><span id="helmet" class="status-safe">--</span></div>
-                <div class="status-row"><span class="status-label">Harness Detected</span><span id="harness" class="status-safe">--</span></div>
+                <div class="status-row"><span class="status-label">Vest Detected</span><span id="vest" class="status-safe">--</span></div>
                 <div class="status-row"><span class="status-label">Person Detected</span><span id="person" class="status-safe">--</span></div>
                 <div class="status-row" style="border-bottom: none;"><span class="status-label">Last Update</span><span id="cv-update" style="color: #64748b; font-size: 12px;">--</span></div>
             </div>
@@ -389,7 +367,7 @@ HTML_TEMPLATE = """
     </div>
     <div style="max-width: 1400px; margin: 0 auto; padding: 0 20px 20px;">
         <div class="panel">
-            <h3>🚨 Recent Alerts</h3>
+            <h3>Recent Alerts</h3>
             <div style="overflow-x: auto;">
                 <table>
                     <thead><tr><th>Time</th><th>Type</th><th>Details</th><th>Status</th></tr></thead>
@@ -398,32 +376,32 @@ HTML_TEMPLATE = """
             </div>
         </div>
     </div>
-    <div class="footer">WASP MVP — UTM FAI Showcase 2026 | Running in <span id="mode">Live</span> Mode</div>
+    <div class="footer">WASP MVP - UTM FAI Showcase 2026 | Running in <span id="mode">Live</span> Mode</div>
     <script>
         async function updateData() {
             try {
                 const s = await fetch('/api/sensors').then(r => r.json());
-                document.getElementById('temp').textContent = (s.temperature || 0).toFixed(1) + '°C';
+                document.getElementById('temp').textContent = (s.temperature || 0).toFixed(1) + ' C';
                 document.getElementById('humid').textContent = (s.humidity || 0).toFixed(1) + '%';
                 document.getElementById('motion').textContent = s.motion ? 'DETECTED' : 'CLEAR';
                 document.getElementById('motion').style.color = s.motion ? '#f59e0b' : '#22c55e';
                 const c = await fetch('/api/cv').then(r => r.json());
                 const helmetEl = document.getElementById('helmet');
-                const harnessEl = document.getElementById('harness');
+                const vestEl = document.getElementById('vest');
                 const personEl = document.getElementById('person');
-                helmetEl.textContent = c.helmet ? '✅ YES' : '❌ NO';
+                helmetEl.textContent = c.helmet ? 'YES' : 'NO';
                 helmetEl.className = c.helmet ? 'status-safe' : 'status-danger';
-                harnessEl.textContent = c.harness ? '✅ YES' : '❌ NO';
-                harnessEl.className = c.harness ? 'status-safe' : 'status-danger';
-                personEl.textContent = c.person ? '✅ YES' : '❌ NO';
+                vestEl.textContent = c.vest ? 'YES' : 'NO';
+                vestEl.className = c.vest ? 'status-safe' : 'status-danger';
+                personEl.textContent = c.person ? 'YES' : 'NO';
                 personEl.className = c.person ? 'status-safe' : 'status-warn';
                 document.getElementById('cv-update').textContent = c.last_update || 'N/A';
-                const hasViolation = c.person && (!c.helmet || !c.harness);
+                const hasViolation = c.person && (!c.helmet || !c.vest);
                 const heatStress = (s.temperature || 0) > 35.0;
                 const statusEl = document.getElementById('status');
-                if (heatStress) { statusEl.textContent = '🔥 HEAT'; statusEl.style.color = '#dc2626'; }
-                else if (hasViolation) { statusEl.textContent = '⚠️ WARN'; statusEl.style.color = '#f59e0b'; }
-                else { statusEl.textContent = '✅ SAFE'; statusEl.style.color = '#22c55e'; }
+                if (heatStress) { statusEl.textContent = 'HEAT'; statusEl.style.color = '#dc2626'; }
+                else if (hasViolation) { statusEl.textContent = 'WARN'; statusEl.style.color = '#f59e0b'; }
+                else { statusEl.textContent = 'SAFE'; statusEl.style.color = '#22c55e'; }
                 document.getElementById('alert-banner').style.display = (hasViolation || heatStress) ? 'block' : 'none';
                 const a = await fetch('/api/alerts').then(r => r.json());
                 const tbody = document.getElementById('alerts-body');
@@ -445,12 +423,10 @@ HTML_TEMPLATE = """
 # ========================== FLASK ROUTES ==========================
 @app.route('/')
 def index():
-    """Serve the main dashboard"""
     return render_template_string(HTML_TEMPLATE)
 
 @app.route('/video_feed')
 def video_feed():
-    """Stream annotated video feed from CV thread"""
     def generate():
         while True:
             with frame_lock:
@@ -464,17 +440,14 @@ def video_feed():
 
 @app.route('/api/sensors')
 def api_sensors():
-    """Return latest sensor data as JSON"""
     return jsonify(sensor_data)
 
 @app.route('/api/cv')
 def api_cv():
-    """Return latest CV detection state as JSON"""
     return jsonify(cv_state)
 
 @app.route('/api/alerts')
 def api_alerts():
-    """Return recent alerts from database"""
     try:
         conn = sqlite3.connect('wasp.db', check_same_thread=False)
         c = conn.cursor()
@@ -510,7 +483,7 @@ if __name__ == '__main__':
         print(f"[INIT] Model loaded. Classes: {list(model.names.values())}")
     except Exception as e:
         print(f"[INIT] FATAL: Cannot load model: {e}")
-        print("[INIT] Make sure 'best.pt' is in the same folder as this script")
+        print("[INIT] Make sure the model file exists at the path above")
         exit(1)
 
     print("[INIT] Starting CV thread...")

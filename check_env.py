@@ -37,11 +37,12 @@ for mod, name in modules.items():
 
 # Check model file
 print("\n[3] Checking model file:")
-if os.path.exists("best.pt"):
-    size = os.path.getsize("best.pt") / (1024*1024)
-    print(f"    [OK] best.pt found ({size:.1f} MB)")
+model_path = "computer_vision/best_construction_ppe.pt"
+if os.path.exists(model_path):
+    size = os.path.getsize(model_path) / (1024*1024)
+    print(f"    [OK] {model_path} found ({size:.1f} MB)")
 else:
-    print("    [MISSING] best.pt not found — copy Born's model to this folder")
+    print(f"    [MISSING] {model_path} not found — copy Born's model to computer_vision/")
     all_ok = False
 
 # Check warnings folder

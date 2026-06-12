@@ -3,11 +3,10 @@ from gtts import gTTS
 import os
 
 warnings = [
-    "Perhatian! Helmet tidak dipakai. Sila pakai helmet sekarang!",
-    "Perhatian! Harness tidak dipakai. Sila pakai harness sekarang!",
-    "Perhatian! Helmet dan Harness tidak dipakai. Sila pakai sekarang!",
-    "Perhatian! Suhu sangat tinggi. Sila berehat dan minum air.",
-    "Perhatian! PPE tidak lengkap. Sila semak kelengkapan keselamatan.",
+    "Perhatian! Helmet tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Vest tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Helmet dan Vest tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Suhu sangat tinggi. Sila berehat!",
 ]
 
 os.makedirs("warnings", exist_ok=True)
