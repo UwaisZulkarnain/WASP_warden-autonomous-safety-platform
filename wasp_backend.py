@@ -214,6 +214,9 @@ def cv_thread():
 
     print("[CV] Camera connected successfully")
 
+    last_json_print = 0
+    JSON_PRINT_INTERVAL = 1.5
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -221,30 +224,145 @@ def cv_thread():
             continue
 
         try:
-            results = model(frame, conf=0.5, verbose=False)
-            annotated = results[0].plot()
+            results = model.predict(frame, conf=0.3, verbose=False)
+            result = results[0]
+            annotated = result.plot()
 
-            helmet = vest = person = False
-            for r in results:
-                for box in r.boxes:
-                    cls = int(box.cls[0])
-                    name = model.names[cls]
-                    if name == "helmet":
-                        helmet = True
-                    elif name == "no_helmet":
-                        helmet = False
-                        person = True
-                    elif name == "vest":
-                        vest = True
-                    elif name == "Person":
-                        person = True
+            persons = []
+            ppe_items = []
+
+            # ==========================
+            # Extract YOLO detections
+            # ==========================
+            for box in result.boxes:
+                cls = int(box.cls[0])
+                confidence = float(box.conf[0])
+                class_name = model.names[cls]
+
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                bbox = [round(x1), round(y1), round(x2), round(y2)]
+
+                detection = {
+                    "class_id": cls,
+                    "class_name": class_name,
+                    "confidence": round(confidence, 2),
+                    "bbox": bbox
+                }
+
+                if class_name.lower() == "person":
+                    persons.append(detection)
+                else:
+                    ppe_items.append(detection)
+
+            # ==========================
+            # Match PPE to each person
+            # ==========================
+            person_outputs = []
+            all_violations = []
+
+            for index, person in enumerate(persons, start=1):
+                person_box = person["bbox"]
+
+                ppe_status = {
+                    "helmet": False,
+                    "vest": False,
+                    "goggles": False,
+                    "gloves": False,
+                    "boots": False,
+                    "no_helmet": False,
+                    "no_goggle": False,
+                    "no_gloves": False,
+                    "no_boots": False
+                }
+
+                confidence_scores = {}
+
+                for item in ppe_items:
+                    item_name = item["class_name"].lower()
+                    item_box = item["bbox"]
+
+                    if is_inside(item_box, person_box):
+                        if item_name in ppe_status:
+                            ppe_status[item_name] = True
+                            confidence_scores[f"confidence_{item_name}"] = item["confidence"]
+
+                violations = []
+
+                if ppe_status["no_helmet"] or not ppe_status["helmet"]:
+                    violations.append("Missing helmet")
+
+                if ppe_status["no_goggle"] or not ppe_status["goggles"]:
+                    violations.append("Missing goggles")
+
+                if ppe_status["no_gloves"] or not ppe_status["gloves"]:
+                    violations.append("Missing gloves")
+
+                if ppe_status["no_boots"] or not ppe_status["boots"]:
+                    violations.append("Missing boots")
+
+                if not ppe_status["vest"]:
+                    violations.append("Missing vest")
+
+                status = "SAFE" if len(violations) == 0 else "VIOLATION"
+
+                person_output = {
+                    "person_id": f"person_{index}",
+                    "bbox": person_box,
+                    "confidence_person": person["confidence"],
+                    "ppe": ppe_status,
+                    "confidence_scores": confidence_scores,
+                    "violations": violations,
+                    "status": status
+                }
+
+                person_outputs.append(person_output)
+                all_violations.extend(violations)
+
+            # ==========================
+            # Overall CV state
+            # ==========================
+            person_detected = len(person_outputs) > 0
+
+            helmet_detected = any(p["ppe"]["helmet"] for p in person_outputs)
+            vest_detected = any(p["ppe"]["vest"] for p in person_outputs)
+            goggles_detected = any(p["ppe"]["goggles"] for p in person_outputs)
+            gloves_detected = any(p["ppe"]["gloves"] for p in person_outputs)
+            boots_detected = any(p["ppe"]["boots"] for p in person_outputs)
+
+            unique_violations = list(set(all_violations))
+
+            overall_status = "NO_PERSON"
+            if person_detected and len(unique_violations) == 0:
+                overall_status = "SAFE"
+            elif person_detected and len(unique_violations) > 0:
+                overall_status = "VIOLATION"
 
             cv_state = {
-                "helmet": helmet,
-                "vest": vest,
-                "person": person,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "zone": "Zone A",
+
+                # Keep these for current dashboard compatibility
+                "helmet": helmet_detected,
+                "vest": vest_detected,
+                "person": person_detected,
+
+                # New CV details
+                "goggles": goggles_detected,
+                "gloves": gloves_detected,
+                "boots": boots_detected,
+                "person_count": len(person_outputs),
+                "persons": person_outputs,
+                "violations": unique_violations,
+                "status": overall_status,
                 "last_update": datetime.now().strftime("%H:%M:%S")
             }
+
+            # Print JSON slowly for debugging / Node-RED planning
+            current_time = time.time()
+            if current_time - last_json_print >= JSON_PRINT_INTERVAL:
+                print("[CV JSON]")
+                print(json.dumps(cv_state, indent=4))
+                last_json_print = current_time
 
             with frame_lock:
                 latest_frame = annotated.copy()
