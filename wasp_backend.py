@@ -50,6 +50,7 @@ WARNING_COOLDOWN = 30
 HEAT_THRESHOLD = 35.0
 
 # ========================== GLOBALS ==========================
+# ========================== GLOBALS ==========================
 app = Flask(__name__)
 
 latest_frame = None
@@ -68,7 +69,14 @@ sensor_data = {
 cv_state = {
     "helmet": False,
     "vest": False,
+    "goggles": False,
+    "gloves": False,
+    "boots": False,
     "person": False,
+    "person_count": 0,
+    "persons": [],
+    "violations": [],
+    "status": "NO_PERSON",
     "last_update": "N/A"
 }
 
@@ -199,6 +207,15 @@ def agent_engine():
             del active_warnings["HEAT"]
 
 # ========================== CV THREAD ==========================
+def is_inside(inner_box, outer_box):
+    ix1, iy1, ix2, iy2 = inner_box
+    ox1, oy1, ox2, oy2 = outer_box
+
+    center_x = (ix1 + ix2) / 2
+    center_y = (iy1 + iy2) / 2
+
+    return ox1 <= center_x <= ox2 and oy1 <= center_y <= oy2
+    
 def cv_thread():
     global latest_frame, cv_state
 
@@ -231,9 +248,6 @@ def cv_thread():
             persons = []
             ppe_items = []
 
-            # ==========================
-            # Extract YOLO detections
-            # ==========================
             for box in result.boxes:
                 cls = int(box.cls[0])
                 confidence = float(box.conf[0])
@@ -254,9 +268,6 @@ def cv_thread():
                 else:
                     ppe_items.append(detection)
 
-            # ==========================
-            # Match PPE to each person
-            # ==========================
             person_outputs = []
             all_violations = []
 
@@ -318,9 +329,6 @@ def cv_thread():
                 person_outputs.append(person_output)
                 all_violations.extend(violations)
 
-            # ==========================
-            # Overall CV state
-            # ==========================
             person_detected = len(person_outputs) > 0
 
             helmet_detected = any(p["ppe"]["helmet"] for p in person_outputs)
@@ -331,22 +339,21 @@ def cv_thread():
 
             unique_violations = list(set(all_violations))
 
-            overall_status = "NO_PERSON"
-            if person_detected and len(unique_violations) == 0:
+            if not person_detected:
+                overall_status = "NO_PERSON"
+            elif len(unique_violations) == 0:
                 overall_status = "SAFE"
-            elif person_detected and len(unique_violations) > 0:
+            else:
                 overall_status = "VIOLATION"
 
             cv_state = {
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "zone": "Zone A",
 
-                # Keep these for current dashboard compatibility
                 "helmet": helmet_detected,
                 "vest": vest_detected,
                 "person": person_detected,
 
-                # New CV details
                 "goggles": goggles_detected,
                 "gloves": gloves_detected,
                 "boots": boots_detected,
@@ -357,7 +364,6 @@ def cv_thread():
                 "last_update": datetime.now().strftime("%H:%M:%S")
             }
 
-            # Print JSON slowly for debugging / Node-RED planning
             current_time = time.time()
             if current_time - last_json_print >= JSON_PRINT_INTERVAL:
                 print("[CV JSON]")
