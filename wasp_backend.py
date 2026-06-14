@@ -50,7 +50,6 @@ WARNING_COOLDOWN = 30
 HEAT_THRESHOLD = 35.0
 
 # ========================== GLOBALS ==========================
-# ========================== GLOBALS ==========================
 app = Flask(__name__)
 
 latest_frame = None
@@ -172,7 +171,7 @@ def agent_engine():
         if not cv_state["helmet"]:
             ppe_violations.append("Helmet")
         if not cv_state["vest"]:
-            ppe_violations.append("Harness")
+            ppe_violations.append("Vest")
 
     if ppe_violations:
         v_key = "PPE_" + "_".join(ppe_violations)
