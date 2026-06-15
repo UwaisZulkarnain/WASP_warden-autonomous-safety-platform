@@ -4,15 +4,24 @@ import os
 
 warnings = [
     "Perhatian! Helmet tidak dipakai. Sila pakai sekarang!",
-    "Perhatian! Vest tidak dipakai. Sila pakai sekarang!",
-    "Perhatian! Helmet dan Vest tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Harness tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Goggles tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Gloves tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Boots tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Helmet dan Harness tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Helmet dan Goggles tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Helmet dan Gloves tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Helmet dan Boots tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Helmet dan Harness dan Goggles tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Helmet dan Harness dan Goggles dan Gloves tidak dipakai. Sila pakai sekarang!",
+    "Perhatian! Helmet dan Harness dan Goggles dan Gloves dan Boots tidak dipakai. Sila pakai sekarang!",
     "Perhatian! Suhu sangat tinggi. Sila berehat!",
 ]
 
 os.makedirs("warnings", exist_ok=True)
 
 for text in warnings:
-    safe_name = text.replace(" ", "_").replace("!", "").replace(".", "").replace(":", "")[:50]
+    safe_name = text.replace(" ", "_").replace("!", "").replace(".", "").replace(":", "")
     filepath = f"warnings/{safe_name}.mp3"
     try:
         tts = gTTS(text=text, lang='ms')
