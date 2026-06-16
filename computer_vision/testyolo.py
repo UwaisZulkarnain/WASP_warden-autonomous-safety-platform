@@ -9,3 +9,5 @@ results = model.predict(
     conf=0.5,
     show=True
 )
+
+print(results)

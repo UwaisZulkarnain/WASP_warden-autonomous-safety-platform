@@ -29,6 +29,8 @@ import json
 from datetime import datetime
 from urllib.parse import quote
 import torch
+import paho.mqtt.client as mqtt
+import json
 CUDA_AVAILABLE = torch.cuda.is_available()
 
 # ========================== CONFIG ==========================
@@ -55,6 +57,12 @@ CALLMEBOT_KEY = "YOUR_APIKEY"
 WARNING_COOLDOWN = 30
 HEAT_THRESHOLD = 35.0
 CONFIDENCE_THRESHOLD = 0.3
+
+BROKER_HOST = "localhost"   #recommended localhost if same device
+BROKER_PORT = 1883          #depends on running device port
+TOPIC       = "sensors/#"
+USERNAME    = ""            # if available
+PASSWORD    = ""            # if available
 
 # ========================== GLOBALS ==========================
 app = Flask(__name__)
@@ -89,6 +97,52 @@ active_warnings = {}
 model = None
 tts_available = False
 simulation_mode = False
+
+# ========================== MQTT Reciever ========================
+def on_connect(client, userdata, flags, reason_code, properties):
+    if reason_code == 0:
+        print(f"Connected to broker at {BROKER_HOST}:{BROKER_PORT}")
+        client.subscribe(TOPIC)
+    else:
+        print(f"Connection failed, reason code: {reason_code}")
+
+
+def on_message(client, userdata, msg):
+    global sensor_data
+    topic   = msg.topic
+    payload = msg.payload.decode("utf-8")
+
+    try:
+        data = json.loads(payload)
+        temp     = data['temperature']
+        humidity = data['humidity']
+        motion   = data['motion']
+        obstacle = data['obstacle']
+        mic_level = data['mic_level']
+        mq2_raw  = data['mq2_raw']
+
+        sensor_data.update({
+            "temperature": temp,
+            "humidity":    humidity,
+            "motion":      1 if motion else 0,
+            "ir":          1 if obstacle else 0,
+            "sound":       mic_level,
+            "air_quality": mq2_raw,
+            "last_update": datetime.now().strftime("%H:%M:%S")
+        })
+        print(f"{motion}    {obstacle}      {humidity}      {temp}      {mic_level}     {mq2_raw}")
+
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"[MQTT] Bad payload: {e}")
+
+    
+
+
+
+def on_disconnect(client, userdata, flags, reason_code, properties):
+    print(f"Disconnected ({reason_code})")
+
+# ==============================================================
 
 # ========================== DATABASE ==========================
 def init_db():
@@ -657,8 +711,26 @@ def api_alerts():
         print(f"[API Error] {e}")
         return jsonify([])
 
+def mqtt_recieve():
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+
+    if USERNAME:
+        client.username_pw_set(USERNAME, PASSWORD)
+
+    client.on_connect    = on_connect
+    client.on_message    = on_message
+    client.on_disconnect = on_disconnect
+
+    print(f"Connecting to {BROKER_HOST}:{BROKER_PORT} ...")
+    client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
+
+    client.loop_forever()
+
 # ========================== MAIN ==========================
 if __name__ == '__main__':
+
+    threading.Thread(target=mqtt_recieve, daemon=True).start()
+
     print("=" * 60)
     print(" WASP - Warden Autonomous Safety Platform")
     print(" MVP Build - UTM FAI Showcase 2026")
@@ -682,7 +754,7 @@ if __name__ == '__main__':
     threading.Thread(target=cv_thread, daemon=True).start()
 
     print("[INIT] Starting Sensor thread...")
-    threading.Thread(target=sensor_thread, daemon=True).start()
+    #threading.Thread(target=sensor_thread, daemon=True).start()
 
     print("[INIT] Starting web server...")
     print("[INIT] Dashboard: http://localhost:5000")
