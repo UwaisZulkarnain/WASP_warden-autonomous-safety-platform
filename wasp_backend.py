@@ -35,7 +35,6 @@ CUDA_AVAILABLE = torch.cuda.is_available()
 
 # ========================== CONFIG ==========================
 # CHANGE THESE VALUES BEFORE RUNNING
-
 # Camera source: 0 = laptop webcam, or XIAO stream URL
 USE_XIAO = False
 XIAO_IP = "192.168.4.1"
@@ -46,7 +45,8 @@ ESP32_PORT = "COM3"
 ESP32_BAUD = 115200
 
 # YOLOv8 Model Path (Born trained model)
-MODEL_PATH = "computer_vision/best_construction_ppe.pt"
+MODEL_PATH = "best_construction_ppe.pt"
+SIMULATE_CV = False   # True = fake CV data, False = real camera YOLO
 
 # WhatsApp CallMeBot Settings
 # Get API key from: https://www.callmebot.com/blog/free-api-whatsapp-messages/
@@ -56,7 +56,7 @@ CALLMEBOT_KEY = "YOUR_APIKEY"
 # Agent Settings
 WARNING_COOLDOWN = 30
 HEAT_THRESHOLD = 35.0
-CONFIDENCE_THRESHOLD = 0.3
+CONFIDENCE_THRESHOLD = 0.35
 
 BROKER_HOST = "localhost"   #recommended localhost if same device
 BROKER_PORT = 1883          #depends on running device port
@@ -308,6 +308,110 @@ def agent_engine():
 def cv_thread():
     global latest_frame, cv_state
 
+    # ==========================
+    # CV SIMULATION MODE
+    # ==========================
+    if SIMULATE_CV:
+        print("[CV] Running in SIMULATION mode")
+
+        scenario = 0
+
+        while True:
+            scenario = (scenario + 1) % 3
+
+            # Scenario 1: No person
+            if scenario == 0:
+                cv_state = {
+                    "person_count": 0,
+                    "persons": [],
+                    "any_violation": False,
+                    "global_helmet": True,
+                    "global_vest": True,
+                    "global_goggles": True,
+                    "global_gloves": True,
+                    "global_boots": True,
+                    "last_update": datetime.now().strftime("%H:%M:%S")
+                }
+
+            # Scenario 2: Safe worker
+            elif scenario == 1:
+                cv_state = {
+                    "person_count": 1,
+                    "persons": [
+                        {
+                            "person_id": "person_1",
+                            "bbox": [120, 70, 420, 480],
+                            "confidence": 0.96,
+                            "ppe": {
+                                "helmet": True,
+                                "vest": True,
+                                "goggles": True,
+                                "gloves": True,
+                                "boots": True,
+                                "no_helmet": False,
+                                "no_goggle": False,
+                                "no_gloves": False,
+                                "no_boots": False
+                            },
+                            "violations": [],
+                            "status": "SAFE"
+                        }
+                    ],
+                    "any_violation": False,
+                    "global_helmet": True,
+                    "global_vest": True,
+                    "global_goggles": True,
+                    "global_gloves": True,
+                    "global_boots": True,
+                    "last_update": datetime.now().strftime("%H:%M:%S")
+                }
+
+            # Scenario 3: PPE violation
+            else:
+                cv_state = {
+                    "person_count": 1,
+                    "persons": [
+                        {
+                            "person_id": "person_1",
+                            "bbox": [120, 70, 420, 480],
+                            "confidence": 0.94,
+                            "ppe": {
+                                "helmet": False,
+                                "vest": True,
+                                "goggles": False,
+                                "gloves": False,
+                                "boots": True,
+                                "no_helmet": True,
+                                "no_goggle": True,
+                                "no_gloves": True,
+                                "no_boots": False
+                            },
+                            "violations": [
+                                "Missing helmet",
+                                "Missing goggles",
+                                "Missing gloves"
+                            ],
+                            "status": "VIOLATION"
+                        }
+                    ],
+                    "any_violation": True,
+                    "global_helmet": False,
+                    "global_vest": True,
+                    "global_goggles": False,
+                    "global_gloves": False,
+                    "global_boots": True,
+                    "last_update": datetime.now().strftime("%H:%M:%S")
+                }
+
+            print("[CV SIMULATION JSON]")
+            print(json.dumps(cv_state, indent=4))
+
+            agent_engine()
+            time.sleep(5)
+
+    # ==========================
+    # REAL YOLO CAMERA MODE
+    # ==========================
     if USE_XIAO:
         print(f"[CV] Connecting to XIAO stream: {XIAO_STREAM_URL}")
         cap = cv2.VideoCapture(XIAO_STREAM_URL)
@@ -321,37 +425,47 @@ def cv_thread():
         if USE_XIAO:
             print("[CV] XIAO stream failed! Falling back to laptop webcam...")
             cap = cv2.VideoCapture(0)
+
         if not cap.isOpened():
             print("[CV] ERROR: No camera available!")
             return
 
     print("[CV] Camera connected successfully")
+
     fps_counter = 0
     fps_start = time.time()
     frame_counter = 0
 
     while True:
         ret, frame = cap.read()
+
         if not ret:
             time.sleep(0.5)
             continue
 
         frame_counter += 1
+
         if not CUDA_AVAILABLE and frame_counter % 2 != 0:
             continue
 
         try:
-            results = model(frame, conf=CONFIDENCE_THRESHOLD, verbose=False, imgsz=320)
+            results = model(
+                frame,
+                conf=CONFIDENCE_THRESHOLD,
+                verbose=False,
+                imgsz=416
+            )
+
             annotated = results[0].plot()
 
             persons = []
             ppe_items = []
 
-            # Separate persons and PPE items
             for box in results[0].boxes:
                 cls = int(box.cls[0])
                 conf = float(box.conf[0])
-                name = results[0].names[cls]
+                name = results[0].names[cls].lower()
+
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
                 bbox = [round(x1), round(y1), round(x2), round(y2)]
 
@@ -361,13 +475,13 @@ def cv_thread():
                     "bbox": bbox
                 }
 
-                if name == "Person":
+                if name == "person":
                     persons.append(detection)
                 else:
                     ppe_items.append(detection)
 
-            # Match PPE to each person using spatial containment
             person_outputs = []
+
             for idx, person in enumerate(persons, start=1):
                 p_box = person["bbox"]
 
@@ -386,21 +500,27 @@ def cv_thread():
                 for item in ppe_items:
                     item_name = item["class_name"]
                     item_box = item["bbox"]
+
                     if is_inside(item_box, p_box):
                         if item_name in ppe_status:
                             ppe_status[item_name] = True
 
                 violations = []
+
+                # Strict demo rule: helmet and vest only
                 if ppe_status["no_helmet"] or not ppe_status["helmet"]:
                     violations.append("Missing helmet")
-                if ppe_status["no_goggle"] or not ppe_status["goggles"]:
-                    violations.append("Missing goggles")
-                if ppe_status["no_gloves"] or not ppe_status["gloves"]:
-                    violations.append("Missing gloves")
-                if ppe_status["no_boots"] or not ppe_status["boots"]:
-                    violations.append("Missing boots")
+
                 if not ppe_status["vest"]:
                     violations.append("Missing vest")
+
+                # Optional PPE displayed but not strict violation yet
+                # if ppe_status["no_goggle"] or not ppe_status["goggles"]:
+                #     violations.append("Missing goggles")
+                # if ppe_status["no_gloves"] or not ppe_status["gloves"]:
+                #     violations.append("Missing gloves")
+                # if ppe_status["no_boots"] or not ppe_status["boots"]:
+                #     violations.append("Missing boots")
 
                 status = "SAFE" if len(violations) == 0 else "VIOLATION"
 
@@ -413,8 +533,8 @@ def cv_thread():
                     "status": status
                 })
 
-            # Compute global status across all persons
             any_violation = any(p["status"] == "VIOLATION" for p in person_outputs)
+
             g_helmet = all(p["ppe"]["helmet"] for p in person_outputs) if person_outputs else True
             g_vest = all(p["ppe"]["vest"] for p in person_outputs) if person_outputs else True
             g_goggles = all(p["ppe"]["goggles"] for p in person_outputs) if person_outputs else True
@@ -439,8 +559,11 @@ def cv_thread():
             agent_engine()
 
             fps_counter += 1
+
             if time.time() - fps_start >= 5.0:
                 print(f"[CV] FPS: {fps_counter / 5.0:.1f}")
+                print("[CV JSON]")
+                print(json.dumps(cv_state, indent=4))
                 fps_counter = 0
                 fps_start = time.time()
 
