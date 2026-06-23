@@ -127,7 +127,7 @@ ML_DEMO_THRESHOLD = -0.6800
 
 # MQTT Broker
 
-BROKER_HOST = "192.168.100.218"   #recommended localhost if same device
+BROKER_HOST = "10.208.193.58"   #recommended localhost if same device
 
 BROKER_PORT = 1883          #depends on running device port
 
@@ -143,7 +143,7 @@ PASSWORD    = ""            # if available
 
 OLLAMA_URL = "http://192.168.212.193:11434"
 
-OLLAMA_MODEL = "llama3.2:3b"
+OLLAMA_MODEL = "llama3.1:8b"
 
 OLLAMA_TIMEOUT = 60  # seconds
 
