@@ -112,6 +112,8 @@ WARNING_COOLDOWN = 30
 
 MEDIUM_COOLDOWN = 60
 
+TTS_COOLDOWN = 15
+
 HEAT_THRESHOLD = 38.0
 
 CONFIDENCE_THRESHOLD = 0.35
@@ -119,7 +121,7 @@ CONFIDENCE_THRESHOLD = 0.35
 # Demo calibration: IsolationForest scores are lower when readings look more unusual.
 # The trained threshold is around -0.587, which is too sensitive for the current MQ2 baseline.
 # Use a stricter threshold so ML supports the agent without causing noisy anomaly flags.
-ML_DEMO_THRESHOLD = -0.6500
+ML_DEMO_THRESHOLD = -0.6800
 
 
 
@@ -575,7 +577,7 @@ def speak(text):
 
         import pygame
 
-        safe_name = text.replace(" ", "_").replace("!", "").replace(".", "").replace(":", "")
+        safe_name = text.replace(" ", "_").replace("!", "").replace(".", "").replace(":", "").replace(",", "")
 
         path = f"warnings/{safe_name}.mp3"
 
@@ -1981,13 +1983,15 @@ class WASPAgent:
 
                 missing.append(f"heat ({temp:.1f}C)")
 
+            display_missing = ["Harness" if item == "vest" else item for item in missing]
+
             return {
 
                 "risk_level": "HIGH",
 
                 "reasoning": f"Critical PPE missing: {missing}.",
 
-                "speak_bm": f"Perhatian! {', '.join(missing)} tidak dipakai!",
+                "speak_bm": f"Perhatian! {', '.join(display_missing)} tidak dipakai!",
 
                 "speak_en": f"Warning! {', '.join(missing)} not worn!",
 
@@ -2049,6 +2053,78 @@ class WASPAgent:
 
 wasp_agent = None
 
+def speak_for_severity(context, severity, current_time=None):
+
+    """Rule-based TTS so audio always follows the live safety state, not LLM phrasing."""
+
+    person_count = context["motion"].get("person_count", 0)
+
+    current_time = current_time or time.time()
+
+    ppe = context["ppe_status"]
+
+    temp = context["environment"].get("temperature", 0.0)
+
+    gas = context["environment"].get("gas_level", 0)
+
+    humidity = context["environment"].get("humidity", 0.0)
+
+    missing = []
+
+    if not ppe.get("helmet", True):
+
+        missing.append("Helmet")
+
+    if not ppe.get("vest", True):
+
+        missing.append("Harness")
+
+    message = None
+
+    tts_key = None
+
+    if temp > HEAT_THRESHOLD and gas > 600:
+
+        tts_key = "TTS_ENV_HEAT_GAS"
+
+        message = "Perhatian! Suhu dan gas tinggi. Sila berehat dan periksa kawasan."
+
+    elif gas > 600:
+
+        tts_key = "TTS_ENV_GAS_HIGH"
+
+        message = "Perhatian! Bacaan gas tinggi. Sila periksa pengudaraan."
+
+    elif temp > HEAT_THRESHOLD:
+
+        tts_key = "TTS_ENV_HEAT_HIGH"
+
+        message = "Perhatian! Suhu sangat tinggi. Sila berehat."
+
+    elif humidity > 80:
+
+        tts_key = "TTS_ENV_HUMID_HIGH"
+
+        message = "Perhatian! Kelembapan tinggi. Sila minum air dan berehat jika perlu."
+
+    elif person_count > 0 and severity == "HIGH" and missing:
+
+        tts_key = "TTS_HIGH_" + "_".join(missing)
+
+        message = f"Perhatian! {' dan '.join(missing)} tidak dipakai. Sila pakai sekarang!"
+
+    if message is None:
+
+        return
+
+    if tts_key in active_warnings and current_time - active_warnings[tts_key] < TTS_COOLDOWN:
+
+        return
+
+    active_warnings[tts_key] = current_time
+
+    speak(message)
+
 
 
 def agent_engine():
@@ -2072,6 +2148,8 @@ def agent_engine():
     context = wasp_agent._build_context()
 
     severity = wasp_agent._get_severity(context)
+
+    speak_for_severity(context, severity, current_time)
 
 
 
@@ -2138,10 +2216,6 @@ def agent_engine():
         if severity == "MEDIUM":
 
             log_alert("AGENT_MEDIUM", decision["log_note"])
-
-            if decision["speak_bm"]:
-
-                speak(decision["speak_bm"])
 
         for k in list(active_warnings.keys()):
 
@@ -2219,6 +2293,14 @@ def agent_engine():
 
             return
 
+        risk_rank = {"LOW": 0, "MEDIUM": 1, "HIGH": 2, "CRITICAL": 3}
+
+        if risk_rank.get(decision.get("risk_level", "LOW"), 0) < risk_rank.get(severity, 0):
+
+            print(f"[AGENT] LLM downgraded {severity} to {decision.get('risk_level', 'LOW')}; using local severity decision")
+
+            decision = wasp_agent._rule_based_fallback(context)
+
 
 
         model_used = wasp_agent.model_active
@@ -2262,12 +2344,6 @@ def agent_engine():
 
 
         if action_tier >= 2:
-
-            bm_msg = decision.get("speak_bm", "")
-
-            if bm_msg:
-
-                speak(bm_msg)
 
             en_msg = decision.get("speak_en", "")
 

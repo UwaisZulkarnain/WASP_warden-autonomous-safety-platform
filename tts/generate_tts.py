@@ -16,6 +16,11 @@ warnings = [
     "Perhatian! Helmet dan Harness dan Goggles dan Gloves tidak dipakai. Sila pakai sekarang!",
     "Perhatian! Helmet dan Harness dan Goggles dan Gloves dan Boots tidak dipakai. Sila pakai sekarang!",
     "Perhatian! Suhu sangat tinggi. Sila berehat!",
+    "Perhatian! Suhu dan gas tinggi. Sila berehat dan periksa kawasan.",
+    "Perhatian! Bacaan gas tinggi. Sila periksa pengudaraan.",
+    "Perhatian! Kelembapan tinggi. Sila minum air dan berehat jika perlu.",
+    "Ingatan! Sila pakai PPE yang lengkap.",
+    "Ingatan! Sila lengkapkan PPE sebelum terus bekerja.",
 ]
 
 os.makedirs("warnings", exist_ok=True)
