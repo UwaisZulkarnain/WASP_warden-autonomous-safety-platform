@@ -128,7 +128,8 @@ ML_DEMO_THRESHOLD = -0.6800
 # MQTT Broker
 
 BROKER_HOST = "192.168.100.218"   #recommended localhost if same device
-
+#192.168.100.218 buaya haute
+#10.208.193.58 PAEN's hotspot
 BROKER_PORT = 1883          #depends on running device port
 
 TOPIC       = "sensors/#"
@@ -166,6 +167,8 @@ GROQ_API_KEY = "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"
 # ========================== GLOBALS ==========================
 
 app = Flask(__name__)
+from flask_cors import CORS
+CORS(app)
 
 
 
