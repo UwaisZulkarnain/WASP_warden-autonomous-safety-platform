@@ -47,7 +47,7 @@ ESP32_PORT = "COM3"
 ESP32_BAUD = 115200
 
 # YOLOv8 Model Path (newer trained model)
-MODEL_PATH = "new_best_construction_ppe.pt"
+MODEL_PATH = "newbest.pt"
 SIMULATE_CV = False   # True = fake CV data, False = real camera YOLO
 
 # Agent Settings
@@ -65,7 +65,7 @@ PASSWORD    = ""            # if available
 # Ollama AI Agent (Primary)
 OLLAMA_URL = "http://192.168.212.193:11434"
 OLLAMA_MODEL = "llama3.2:3b"
-OLLAMA_TIMEOUT = 10  # seconds
+OLLAMA_TIMEOUT = 60  # seconds
 
 # Agent Mode Toggle
 AGENT_MODE = "groq"  # "ollama" or "groq"
@@ -521,7 +521,7 @@ class WASPAgent:
         self.model_active = "none"
         self.last_response_time_ms = 0
         self.last_tool_calls = []
-        self.groq_cooldown = 10
+        self.groq_cooldown = 15
         self.last_groq_call = 0
         self.last_report_date = None
         self.model = GROQ_MODEL
@@ -585,7 +585,7 @@ class WASPAgent:
             print(f"[WASPAgent] Ollama timeout after {OLLAMA_TIMEOUT}s")
             return None
         except Exception as e:
-            print(f"[WASPAgent] Ollama error: {e}")
+            print(f"[WASPAgent] Ollama error detail: {type(e).__name__}: {e}")
             return None
 
     def _call_groq(self, messages, tools=None, tool_choice="auto"):
@@ -626,7 +626,7 @@ class WASPAgent:
         Agentic loop:
         1. Build initial prompt with tools
         2. Call selected provider (Ollama or Groq) based on AGENT_MODE
-        3. If tool_calls → execute tools, print [TOOL CALL]/[RESULT]
+        3. If tool_calls -> execute tools, print [TOOL CALL]/[RESULT]
         4. Feed results back for final decision
         5. Print [AGENT DECISION]
         """
@@ -665,6 +665,7 @@ class WASPAgent:
 
         # Call selected provider only
         if AGENT_MODE == "ollama":
+            print(f"[WASPAgent] Calling Ollama at {OLLAMA_URL} with model {OLLAMA_MODEL}")
             llm_response = self._call_ollama(messages, tools=TOOL_DEFINITIONS)
             if llm_response is None:
                 print("[WASPAgent] Ollama failed, using rule-based fallback")
@@ -736,6 +737,7 @@ class WASPAgent:
             print(f"[WASPAgent] JSON parse error: {e}")
             return self._rule_based_fallback(context)
 
+        decision["model_used"] = self.model_active
         print(f"[AGENT DECISION] {decision.get('risk_level', 'UNKNOWN')} | tier {decision.get('action_tier', '-')} | {decision.get('reasoning', '')[:120]}")
         return decision
 
@@ -802,7 +804,8 @@ class WASPAgent:
                 "speak_bm": "BAHAYA! Suhu melampau dan gas berbahaya. Sila keluar kawasan!",
                 "speak_en": "DANGER! Extreme heat and gas hazard. Evacuate immediately!",
                 "notify_supervisor": True, "action_tier": 4,
-                "log_note": f"CRITICAL: Heat {temp:.1f}C + gas."
+                "log_note": f"CRITICAL: Heat {temp:.1f}C + gas.",
+                "model_used": "rule-based"
             }
         elif severity == "HIGH":
             missing = [k for k in ["helmet", "vest"] if not ppe[k]]
@@ -814,7 +817,8 @@ class WASPAgent:
                 "speak_bm": f"Perhatian! {', '.join(missing)} tidak dipakai!",
                 "speak_en": f"Warning! {', '.join(missing)} not worn!",
                 "notify_supervisor": True, "action_tier": 3,
-                "log_note": f"HIGH: Missing {missing}."
+                "log_note": f"HIGH: Missing {missing}.",
+                "model_used": "rule-based"
             }
         elif severity == "MEDIUM":
             missing = [k for k in ["gloves", "boots", "goggles"] if not ppe[k]]
@@ -824,14 +828,16 @@ class WASPAgent:
                 "speak_bm": f"Ingatan! {', '.join(missing)} tidak dipakai.",
                 "speak_en": f"Reminder! {', '.join(missing)} not detected.",
                 "notify_supervisor": False, "action_tier": 2,
-                "log_note": f"MEDIUM: Missing {missing}."
+                "log_note": f"MEDIUM: Missing {missing}.",
+                "model_used": "rule-based"
             }
         else:
             return {
                 "risk_level": "LOW", "reasoning": "All clear.",
                 "speak_bm": "", "speak_en": "",
                 "notify_supervisor": False, "action_tier": 1,
-                "log_note": "LOW: Site safe."
+                "log_note": "LOW: Site safe.",
+                "model_used": "rule-based"
             }
 
 
@@ -1110,9 +1116,11 @@ def cv_thread():
             )
 
             annotated = results[0].plot()
+            print(f"[CV] Frame shape: {annotated.shape}, has boxes: {len(results[0].boxes)}")
 
             persons = []
             ppe_items = []
+            person_outputs = []
 
             for box in results[0].boxes:
                 cls = int(box.cls[0])
@@ -1132,6 +1140,38 @@ def cv_thread():
                     persons.append(detection)
                 else:
                     ppe_items.append(detection)
+
+            # --- Draw metrics overlay ---
+            current_fps = fps_counter / max(time.time() - fps_start, 0.001)
+            lines = [
+                ("CUDA" if CUDA_AVAILABLE else "CPU", (0, 255, 0) if CUDA_AVAILABLE else (0, 255, 255)),
+                (f"FPS: {current_fps:.1f}", (255, 255, 255)),
+                (f"Persons: {len(person_outputs)}", (255, 255, 255)),
+                (f"Violations: {sum(1 for p in person_outputs if p['status'] == 'VIOLATION')}", (255, 150, 150)),
+                (f"Conf: {CONFIDENCE_THRESHOLD}", (200, 200, 255)),
+                (f"Agent: {AGENT_MODE.upper()}", (255, 255, 255)),
+                (f"Model: {OLLAMA_MODEL if AGENT_MODE == 'ollama' else GROQ_MODEL}", (255, 255, 255))
+            ]
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            scale = 0.55
+            thick = 1
+            x = 10
+            y_start = 30
+            line_h = 22
+            max_w = 0
+            for txt, _ in lines:
+                (tw, _), _ = cv2.getTextSize(txt, font, scale, thick)
+                if tw > max_w:
+                    max_w = tw
+            pad = 6
+            overlay = annotated.copy()
+            cv2.rectangle(overlay, (x - pad, y_start - 20), (x - pad + max_w + pad * 2, y_start - 20 + len(lines) * line_h + pad), (0, 0, 0), -1)
+            alpha = 0.6
+            cv2.addWeighted(overlay, alpha, annotated, 1 - alpha, 0, annotated)
+            for i, (txt, color) in enumerate(lines):
+                y = y_start + i * line_h
+                cv2.putText(annotated, txt, (x, y), font, scale, color, thick, cv2.LINE_AA)
+            # --- End overlay ---
 
             person_outputs = []
 
@@ -1816,10 +1856,24 @@ if __name__ == '__main__':
     try:
         model = YOLO(MODEL_PATH)
         print(f"[INIT] Model loaded. Classes: {list(model.names.values())}")
+        if CUDA_AVAILABLE:
+            model.to('cuda')
+            print("[INIT] YOLO running on GPU (CUDA)")
+        else:
+            print("[INIT] YOLO running on CPU")
     except Exception as e:
         print(f"[INIT] FATAL: Cannot load model: {e}")
         print("[INIT] Make sure the model file exists at the path above")
         exit(1)
+
+    # Pre-warm Ollama model in background so first real call doesn't timeout
+    def prewarm_ollama():
+        try:
+            requests.post(f"{OLLAMA_URL}/api/generate", json={"model": OLLAMA_MODEL, "prompt": "ready", "stream": False}, timeout=120)
+            print("[INIT] Ollama model pre-warmed successfully")
+        except Exception as e:
+            print(f"[INIT] Ollama pre-warm failed: {e}")
+    threading.Thread(target=prewarm_ollama, daemon=True).start()
 
     print("[INIT] Starting CV thread...")
     threading.Thread(target=cv_thread, daemon=True).start()
