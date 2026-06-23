@@ -70,7 +70,7 @@ import paho.mqtt.client as mqtt
 
 from groq import Groq
 
-
+from report_generator import generate_report, save_violation_screenshot
 
 CUDA_AVAILABLE = torch.cuda.is_available()
 
@@ -3927,9 +3927,17 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 <div class="header-sub">Warden Autonomous Safety Platform</div>
             </div>
         </div>
-        <div class="header-right">
-            <div class="header-time" id="clock">--:--:--</div>
-            <div class="header-date" id="date">--</div>
+        <div style="display:flex;align-items:center;gap:16px;">
+            <button id="report-btn" onclick="generateReport()" style="
+                background:#dc2626;border:1.5px solid #fca5a5;color:#fff;
+                font-size:12px;font-weight:700;padding:8px 16px;border-radius:7px;
+                cursor:pointer;letter-spacing:.5px;transition:all .2s;white-space:nowrap;">
+                &#128196; Generate Report
+            </button>
+            <div class="header-right">
+                <div class="header-time" id="clock">--:--:--</div>
+                <div class="header-date" id="date">--</div>
+            </div>
         </div>
     </div>
     <div id="alert-banner" class="alert-banner">
@@ -4189,7 +4197,46 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         setInterval(updateAgent, 3000);
         updateData();
         updateAgent();
-        updateModeUI('groq');
+        async function generateReport() {
+            const btn = document.getElementById('report-btn');
+            btn.textContent = '⏳ Generating...';
+            btn.disabled = true;
+            btn.style.opacity = '0.7';
+            try {
+                const res = await fetch('/api/report/generate', { method: 'POST' });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    btn.textContent = '✅ Report Ready';
+                    btn.style.background = '#16a34a';
+                    // Open PDF in new tab
+                    window.open('/reports/' + data.report, '_blank');
+                    // Also log screenshot name
+                    if (data.screenshot) {
+                        console.log('[WASP] Screenshot saved:', data.screenshot);
+                    }
+                    setTimeout(() => {
+                        btn.textContent = '📄 Generate Report';
+                        btn.style.background = '#dc2626';
+                        btn.disabled = false;
+                        btn.style.opacity = '1';
+                    }, 4000);
+                } else {
+                    btn.textContent = '❌ Error';
+                    btn.style.background = '#7c3aed';
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    setTimeout(() => { btn.textContent = '📄 Generate Report'; btn.style.background='#dc2626'; }, 3000);
+                    alert('Report error: ' + (data.message || 'unknown'));
+                }
+            } catch(e) {
+                btn.textContent = '❌ Failed';
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                setTimeout(() => { btn.textContent = '📄 Generate Report'; btn.style.background='#dc2626'; }, 3000);
+                console.error('Report error:', e);
+            }
+        }
+    </script>
     </script>
 </body>
 </html>
@@ -4552,6 +4599,61 @@ def mqtt_recieve():
 
 
     client.loop_forever()
+
+@app.route('/api/report/generate', methods=['POST'])
+def api_generate_report():
+    """
+    On-demand safety report endpoint.
+    Saves a violation screenshot of the current frame,
+    then generates a PDF report and returns the file path.
+    """
+    try:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        os.makedirs("reports", exist_ok=True)
+ 
+        # Grab current frame for screenshot
+        with frame_lock:
+            frame_copy = latest_frame.copy() if latest_frame is not None else None
+ 
+        screenshot_path = save_violation_screenshot(frame_copy, cv_state, "reports")
+ 
+        # Grab latest ML prediction
+        with ml_prediction_lock:
+            ml_snap = ml_latest_prediction
+ 
+        output_path = f"reports/safety_report_{ts}.pdf"
+        generate_report(
+            output_path=output_path,
+            sensor_data=sensor_data,
+            cv_state=cv_state,
+            db_path="wasp.db",  
+            ml_result=ml_snap,
+        )
+ 
+        screenshot_name = os.path.basename(screenshot_path) if screenshot_path else None
+        report_name = os.path.basename(output_path)
+ 
+        log_alert("REPORT_GENERATED", f"On-demand report: {report_name}")
+        print(f"[REPORT] Generated: {output_path}")
+ 
+        return jsonify({
+            "status": "ok",
+            "report": report_name,
+            "screenshot": screenshot_name,
+            "timestamp": ts,
+        })
+ 
+    except Exception as e:
+        print(f"[REPORT Error] {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+ 
+ 
+@app.route('/reports/<path:filename>')
+def serve_report(filename):
+    """Serve generated report files for download."""
+    from flask import send_from_directory
+    return send_from_directory(os.path.abspath("reports"), filename)
+ 
 
 
 
