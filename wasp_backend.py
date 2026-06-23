@@ -17,6 +17,7 @@ Usage:
 
 import cv2
 import numpy as np
+import joblib
 import re
 from flask import Flask, render_template_string, Response, jsonify, request
 from ultralytics import YOLO
@@ -47,7 +48,7 @@ ESP32_PORT = "COM3"
 ESP32_BAUD = 115200
 
 # YOLOv8 Model Path (newer trained model)
-MODEL_PATH = "newbest.pt"
+MODEL_PATH = "cv_final.pt"
 SIMULATE_CV = False   # True = fake CV data, False = real camera YOLO
 
 # Agent Settings
@@ -104,9 +105,21 @@ cv_state = {
 }
 
 active_warnings = {}
+agent_lock = threading.Lock()
 model = None
 tts_available = False
 simulation_mode = False
+
+# ==================== ML ANOMALY DETECTION ====================
+ML_AVAILABLE = False
+ml_model_analog = None
+ml_model_env = None
+ml_scaler_analog = None
+ml_scaler_env = None
+ml_threshold = None
+ml_latest_prediction = None
+ml_prediction_lock = threading.Lock()
+# ==============================================================
 
 # Reusable MQTT client (connected once, reused for publish)
 mqtt_client = None
@@ -294,6 +307,64 @@ def flutter_notify(payload):
     Prints the full payload as labelled JSON so it's easy to parse/forward.
     """
     print("[FLUTTER READY] " + json.dumps(payload))
+
+
+# ==================== ML ANOMALY DETECTION ====================
+def load_ml_models():
+    """Load IsolationForest models and scalers from esp32/model/."""
+    global ML_AVAILABLE, ml_model_analog, ml_model_env, ml_scaler_analog, ml_scaler_env, ml_threshold
+    try:
+        ml_model_analog  = joblib.load("esp32/model/model_analog.pkl")
+        ml_model_env     = joblib.load("esp32/model/model_env.pkl")
+        ml_scaler_analog = joblib.load("esp32/model/scaler_analog.pkl")
+        ml_scaler_env    = joblib.load("esp32/model/scaler_env.pkl")
+        ml_threshold     = float(np.load("esp32/model/threshold.npy"))
+        ML_AVAILABLE = True
+        print(f"[ML] Models loaded successfully (threshold={ml_threshold:.4f})")
+    except Exception as e:
+        ML_AVAILABLE = False
+        print(f"[ML] Model load failed: {e}")
+
+def predict_anomaly(sensor_data: dict) -> dict:
+    """Run ML anomaly detection on sensor readings."""
+    import warnings
+    warnings.filterwarnings("ignore", category=UserWarning, module="sklearn")
+
+    if not ML_AVAILABLE:
+        return {"anomaly": False, "label": "Normal", "combined_score": 0.0, "env_score": 0.0, "analog_score": 0.0}
+
+    try:
+        temp = sensor_data.get("temperature", 0.0)
+        humidity = sensor_data.get("humidity", 0.0)
+        mic_level = sensor_data.get("sound", 0.0)
+        mq2_raw = sensor_data.get("air_quality", 0.0)
+
+        # Apply training-time offsets
+        t = temp - 6.0
+        h = humidity + 29.0
+        m = float(mic_level)
+        g = float(mq2_raw)
+
+        # Scale inputs
+        test_env    = ml_scaler_env.transform([[t, h]])
+        test_analog = ml_scaler_analog.transform([[m, g]])
+
+        # Score
+        env_score    = ml_model_env.score_samples(test_env)[0]
+        analog_score = ml_model_analog.score_samples(test_analog)[0]
+        combined     = 0.4 * env_score + 0.6 * analog_score
+
+        is_anomaly = combined < ml_threshold
+        return {
+            "anomaly": bool(combined < ml_threshold),
+            "combined_score": float(round(combined, 4)),
+            "env_score": float(round(env_score, 4)),
+            "analog_score": float(round(analog_score, 4)),
+            "label": "ANOMALY" if combined < ml_threshold else "Normal"
+        }
+    except Exception as e:
+        print(f"[ML] Prediction error: {e}")
+        return {"anomaly": False, "label": "Error", "combined_score": 0.0, "env_score": 0.0, "analog_score": 0.0}
 
 # ========================== SPATIAL MATCHING (Born) ==========================
 def is_inside(inner_box, outer_box):
@@ -590,6 +661,7 @@ class WASPAgent:
 
     def _call_groq(self, messages, tools=None, tool_choice="auto"):
         """Call Groq chat completions with optional tools."""
+        print(f"[Groq] Using key: {GROQ_API_KEY[:10]}...")
         if self.groq_client is None:
             return None
         try:
@@ -743,6 +815,16 @@ class WASPAgent:
 
     def _build_context(self):
         """Build site context dict from sensor_data and cv_state globals."""
+        # ML anomaly prediction
+        ml_result = None
+        if ML_AVAILABLE:
+            try:
+                ml_result = predict_anomaly(sensor_data)
+                with ml_prediction_lock:
+                    ml_latest_prediction = ml_result
+            except Exception as e:
+                print(f"[ML] Prediction error in context: {e}")
+
         temp = sensor_data.get("temperature", 0.0)
         gas = sensor_data.get("gas_level", sensor_data.get("air_quality", 0))
         humidity = sensor_data.get("humidity", 0.0)
@@ -766,14 +848,33 @@ class WASPAgent:
             "environment": {"temperature": temp, "gas_level": gas, "humidity": humidity},
             "ppe_status": {"helmet": helmet, "vest": vest, "gloves": gloves, "boots": boots, "goggles": goggles},
             "motion": {"person_count": person_count, "worker_detected": worker_detected},
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "ml_anomaly": ml_result
         }
 
     def _get_severity(self, context):
         """Local rule-based severity check."""
+        person_count = context["motion"]["person_count"]
+        ml_result = context.get("ml_anomaly")
+
+        if ML_AVAILABLE and ml_result and ml_result.get("anomaly"):
+            if person_count == 0:
+                return "LOW"
+            ppe = context["ppe_status"]
+            if not ppe["helmet"] or not ppe["vest"]:
+                return "CRITICAL"
+            return "HIGH"
+
         temp = context["environment"]["temperature"]
         gas = context["environment"]["gas_level"]
         ppe = context["ppe_status"]
+
+        if person_count == 0:
+            if temp > HEAT_THRESHOLD and gas > 500:
+                return "CRITICAL"
+            if temp > HEAT_THRESHOLD:
+                return "HIGH"
+            return "LOW"
 
         if temp > HEAT_THRESHOLD and gas > 500:
             return "CRITICAL"
@@ -785,7 +886,7 @@ class WASPAgent:
             return "MEDIUM"
         if 30 < temp <= HEAT_THRESHOLD:
             return "MEDIUM"
-        if context["motion"]["worker_detected"] and gas > 300:
+        if context["motion"]["worker_detected"] and person_count > 0 and gas > 300:
             return "MEDIUM"
         return "LOW"
 
@@ -859,17 +960,17 @@ def agent_engine():
 
     # LOW / MEDIUM: lightweight handling
     if severity in ("LOW", "MEDIUM"):
+        decision = wasp_agent._rule_based_fallback(context)
+        log_agent_decision(
+            decision["risk_level"], decision["reasoning"],
+            decision["speak_bm"], decision["speak_en"],
+            decision["action_tier"], decision["notify_supervisor"],
+            context, decision["log_note"]
+        )
         if severity == "MEDIUM":
-            decision = wasp_agent._rule_based_fallback(context)
             log_alert("AGENT_MEDIUM", decision["log_note"])
             if decision["speak_bm"]:
                 speak(decision["speak_bm"])
-            log_agent_decision(
-                decision["risk_level"], decision["reasoning"],
-                decision["speak_bm"], decision["speak_en"],
-                decision["action_tier"], decision["notify_supervisor"],
-                context, decision["log_note"]
-            )
         for k in list(active_warnings.keys()):
             if k.startswith("CRIT_") or k.startswith("HIGH_"):
                 del active_warnings[k]
@@ -896,9 +997,21 @@ def agent_engine():
     if v_key in active_warnings:
         elapsed = current_time - active_warnings[v_key]
         if elapsed < WARNING_COOLDOWN:
+            # Log cooldown decision so dashboard shows it
+            cooldown_decision = wasp_agent._rule_based_fallback(context)
+            log_agent_decision(
+                cooldown_decision["risk_level"], f"[Cooldown] {cooldown_decision['reasoning']}",
+                "", "", cooldown_decision["action_tier"],
+                cooldown_decision["notify_supervisor"],
+                context, cooldown_decision["log_note"]
+            )
             return
 
     active_warnings[v_key] = current_time
+
+    if not agent_lock.acquire(blocking=False):
+        print("[AGENT] Agent thread already running, skipping duplicate call")
+        return
 
     def run_agent():
         decision = wasp_agent.analyze(context)
@@ -959,6 +1072,8 @@ def agent_engine():
                 "duration": 5,
                 "reason": decision.get("log_note", "")
             })
+
+        agent_lock.release()
 
     threading.Thread(target=run_agent, daemon=True).start()
 
@@ -1116,7 +1231,6 @@ def cv_thread():
             )
 
             annotated = results[0].plot()
-            print(f"[CV] Frame shape: {annotated.shape}, has boxes: {len(results[0].boxes)}")
 
             persons = []
             ppe_items = []
@@ -1348,18 +1462,37 @@ def daily_report_loop():
                           (today_start, tomorrow_start))
                 decisions_by_risk = {row[0]: row[1] for row in c.fetchall()}
 
-                c.execute("SELECT action_tier, COUNT(*) FROM agent_decisions WHERE timestamp >= ? AND timestamp < ? GROUP BY action_tier",
+                c.execute("SELECT decision_json FROM agent_decisions WHERE timestamp >= ? AND timestamp < ?",
                           (today_start, tomorrow_start))
-                actions_by_tier = {f"tier_{row[0]}": row[1] for row in c.fetchall()}
+                action_rows = c.fetchall()
+                actions_by_tier = {}
+                # action_tier is inside decision_json, not a direct column
+                for row in action_rows:
+                    if row[0]:
+                        try:
+                            dj = json.loads(row[0])
+                            tier = dj.get("action_tier", 1)
+                            key = f"tier_{tier}"
+                            actions_by_tier[key] = actions_by_tier.get(key, 0) + 1
+                        except:
+                            pass
 
                 # --- Full alert list for Groq narrative ---
                 c.execute("SELECT timestamp, alert_type, details FROM alerts WHERE timestamp >= ? AND timestamp < ? ORDER BY timestamp",
                           (today_start, tomorrow_start))
                 alert_rows = [{"time": r[0], "type": r[1], "details": r[2]} for r in c.fetchall()]
 
-                c.execute("SELECT timestamp, risk_level, reasoning, action_tier FROM agent_decisions WHERE timestamp >= ? AND timestamp < ? ORDER BY timestamp",
+                c.execute("SELECT timestamp, risk_level, decision_json FROM agent_decisions WHERE timestamp >= ? AND timestamp < ? ORDER BY timestamp",
                           (today_start, tomorrow_start))
-                decision_rows = [{"time": r[0], "risk": r[1], "reason": r[2], "tier": r[3]} for r in c.fetchall()]
+                decision_rows = []
+                for r in c.fetchall():
+                    dj = json.loads(r[2]) if r[2] else {}
+                    decision_rows.append({
+                        "time": r[0],
+                        "risk": r[1],
+                        "reason": dj.get("reasoning", ""),
+                        "tier": dj.get("action_tier", 1)
+                    })
 
                 conn.close()
 
@@ -1544,10 +1677,11 @@ HTML_TEMPLATE = """
         <div class="panel">
             <h3>AI Agent Status <span id="agent-mode-badge" class="badge" style="background: #38bdf8; color: #0f172a; margin-left: 8px;">GROQ</span></h3>
             <div style="margin-bottom: 12px;">
+                <span id="ml-tier" style="background:#334155; color:#e2e8f0; padding:2px 8px; border-radius:4px; font-size:12px; margin-right:8px;">ML: --</span>
                 <button id="btn-ollama" onclick="setAgentMode('ollama')" style="background: #334155; color: #e2e8f0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-right: 8px;">Local (Ollama)</button>
                 <button id="btn-groq" onclick="setAgentMode('groq')" style="background: #22c55e; color: #0f172a; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px;">Cloud (Groq)</button>
             </div>
-            <div id="agent-panel">
+                    <div id="agent-panel">
                 <div style="color: #64748b; text-align: center; padding: 20px;">Waiting for agent decision...</div>
             </div>
         </div>
@@ -1647,7 +1781,20 @@ HTML_TEMPLATE = """
 
         async function updateAgent() {
             try {
+                const ml = await fetch('/api/ml').then(r => r.json());
+                const mlTier = document.getElementById('ml-tier');
+                if (ml && ml.label === 'ANOMALY') {
+                    mlTier.textContent = 'ML: ANOMALY';
+                    mlTier.style.background = '#dc2626';
+                    mlTier.title = 'Combined score: ' + (ml.combined_score || 0);
+                } else {
+                    mlTier.textContent = 'ML: Normal';
+                    mlTier.style.background = '#22c55e';
+                    mlTier.title = '';
+                }
+
                 const a = await fetch('/api/agent').then(r => r.json());
+                console.log('[Agent Debug]', a);
                 const panel = document.getElementById('agent-panel');
                 if (a.length > 0) {
                     const latest = a[0];
@@ -1774,6 +1921,7 @@ def api_agent():
         c = conn.cursor()
         c.execute("SELECT * FROM agent_decisions ORDER BY id DESC LIMIT 10")
         rows = c.fetchall()
+        print(f"[API Agent] Returning {len(rows)} decisions")
         conn.close()
         decisions = []
         for r in rows:
@@ -1796,6 +1944,16 @@ def api_agent():
     except Exception as e:
         print(f"[API Agent Error] {e}")
         return jsonify([])
+
+
+
+@app.route('/api/ml')
+def api_ml():
+    """Return latest ML anomaly prediction."""
+    with ml_prediction_lock:
+        if ml_latest_prediction is not None:
+            return jsonify(ml_latest_prediction)
+        return jsonify({"anomaly": False, "label": "Normal", "combined_score": 0.0})
 
 @app.route('/api/agent/mode', methods=['GET', 'POST'])
 def agent_mode():
@@ -1853,6 +2011,9 @@ if __name__ == '__main__':
     print("[INIT] Initializing WASP AI Agent...")
     wasp_agent = WASPAgent()
 
+    print("[INIT] Loading ML anomaly detection models...")
+    load_ml_models()
+
     print(f"[INIT] Loading YOLOv8 model from {MODEL_PATH}...")
     try:
         model = YOLO(MODEL_PATH)
@@ -1889,5 +2050,9 @@ if __name__ == '__main__':
     print("[INIT] Dashboard: http://localhost:5000")
     print("[INIT] Press Ctrl+C to stop")
     print("=" * 60)
+
+    import logging
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
 
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
