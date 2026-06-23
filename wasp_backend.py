@@ -70,6 +70,11 @@ import paho.mqtt.client as mqtt
 
 from groq import Groq
 
+CHANGE_1_AFTER = "from groq import Groq"
+CHANGE_1_INSERT = """
+from report_generator import generate_report, save_violation_screenshot
+"""
+
 
 
 CUDA_AVAILABLE = torch.cuda.is_available()
@@ -127,7 +132,7 @@ ML_DEMO_THRESHOLD = -0.6800
 
 # MQTT Broker
 
-BROKER_HOST = "10.208.193.58"   #recommended localhost if same device
+BROKER_HOST = "192.168.100.218"   #recommended localhost if same device
 
 BROKER_PORT = 1883          #depends on running device port
 
