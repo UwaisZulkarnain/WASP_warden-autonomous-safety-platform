@@ -1,8 +1,43 @@
+# WASP - Warden Autonomous Safety Platform
+# Complete Python dependencies for backend, CV, ML, and TTS
+
+# ------------------------------
+# Core Backend
+# ------------------------------
 flask>=2.0.0
-ultralytics>=8.0.0
-opencv-python>=4.8.0
-pyserial>=3.5
 requests>=2.28.0
+
+# ------------------------------
+# Computer Vision & YOLO
+# ------------------------------
+opencv-python>=4.8.0
+ultralytics>=8.0.0
+torch>=2.0.0
+torchvision>=0.15.0
+
+# ------------------------------
+# IoT & Serial Communication
+# ------------------------------
+pyserial>=3.5
+paho-mqtt>=1.6.1
+
+# ------------------------------
+# AI Agent & LLM
+# ------------------------------
+groq>=0.3.0
+
+# ------------------------------
+# Audio / TTS
+# ------------------------------
 gtts>=2.3.0
 pygame>=2.5.0
+
+# ------------------------------
+# Data & ML Utilities
+# ------------------------------
 numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+matplotlib>=3.7.0
+lime>=0.2.0
