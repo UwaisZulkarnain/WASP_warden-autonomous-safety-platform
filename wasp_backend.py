@@ -1120,7 +1120,6 @@ def cv_thread():
 
             persons = []
             ppe_items = []
-            person_outputs = []
 
             for box in results[0].boxes:
                 cls = int(box.cls[0])
@@ -1141,37 +1140,7 @@ def cv_thread():
                 else:
                     ppe_items.append(detection)
 
-            # --- Draw metrics overlay ---
-            current_fps = fps_counter / max(time.time() - fps_start, 0.001)
-            lines = [
-                ("CUDA" if CUDA_AVAILABLE else "CPU", (0, 255, 0) if CUDA_AVAILABLE else (0, 255, 255)),
-                (f"FPS: {current_fps:.1f}", (255, 255, 255)),
-                (f"Persons: {len(person_outputs)}", (255, 255, 255)),
-                (f"Violations: {sum(1 for p in person_outputs if p['status'] == 'VIOLATION')}", (255, 150, 150)),
-                (f"Conf: {CONFIDENCE_THRESHOLD}", (200, 200, 255)),
-                (f"Agent: {AGENT_MODE.upper()}", (255, 255, 255)),
-                (f"Model: {OLLAMA_MODEL if AGENT_MODE == 'ollama' else GROQ_MODEL}", (255, 255, 255))
-            ]
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            scale = 0.55
-            thick = 1
-            x = 10
-            y_start = 30
-            line_h = 22
-            max_w = 0
-            for txt, _ in lines:
-                (tw, _), _ = cv2.getTextSize(txt, font, scale, thick)
-                if tw > max_w:
-                    max_w = tw
-            pad = 6
-            overlay = annotated.copy()
-            cv2.rectangle(overlay, (x - pad, y_start - 20), (x - pad + max_w + pad * 2, y_start - 20 + len(lines) * line_h + pad), (0, 0, 0), -1)
-            alpha = 0.6
-            cv2.addWeighted(overlay, alpha, annotated, 1 - alpha, 0, annotated)
-            for i, (txt, color) in enumerate(lines):
-                y = y_start + i * line_h
-                cv2.putText(annotated, txt, (x, y), font, scale, color, thick, cv2.LINE_AA)
-            # --- End overlay ---
+
 
             person_outputs = []
 
@@ -1217,6 +1186,38 @@ def cv_thread():
                     "violations": violations,
                     "status": status
                 })
+
+          # --- Draw metrics overlay ---
+            current_fps = fps_counter / max(time.time() - fps_start, 0.001)
+            lines = [
+                ("CUDA" if CUDA_AVAILABLE else "CPU", (0, 255, 0) if CUDA_AVAILABLE else (0, 255, 255)),
+                (f"FPS: {current_fps:.1f}", (255, 255, 255)),
+                (f"Persons: {len(person_outputs)}", (255, 255, 255)),
+                (f"Violations: {sum(1 for p in person_outputs if p['status'] == 'VIOLATION')}", (255, 150, 150)),
+                (f"Conf: {CONFIDENCE_THRESHOLD}", (200, 200, 255)),
+                (f"Agent: {AGENT_MODE.upper()}", (255, 255, 255)),
+                (f"Model: {OLLAMA_MODEL if AGENT_MODE == 'ollama' else GROQ_MODEL}", (255, 255, 255))
+            ]
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            scale = 0.55
+            thick = 1
+            x = 10
+            y_start = 30
+            line_h = 22
+            max_w = 0
+            for txt, _ in lines:
+                (tw, _), _ = cv2.getTextSize(txt, font, scale, thick)
+                if tw > max_w:
+                    max_w = tw
+            pad = 6
+            overlay = annotated.copy()
+            cv2.rectangle(overlay, (x - pad, y_start - 20), (x - pad + max_w + pad * 2, y_start - 20 + len(lines) * line_h + pad), (0, 0, 0), -1)
+            alpha = 0.6
+            cv2.addWeighted(overlay, alpha, annotated, 1 - alpha, 0, annotated)
+            for i, (txt, color) in enumerate(lines):
+                y = y_start + i * line_h
+                cv2.putText(annotated, txt, (x, y), font, scale, color, thick, cv2.LINE_AA)
+            # --- End overlay ---
 
             any_violation = any(p["status"] == "VIOLATION" for p in person_outputs)
 
