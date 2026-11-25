@@ -8,6 +8,14 @@
 
 </div>
 
+## What is WASP?
+
+WASP (Warden Autonomous Safety Platform) is a virtual safety officer for construction sites. An ESP32 node streams temperature, humidity, motion and gas readings over MQTT, while a USB webcam runs YOLOv8 to check each worker's PPE (helmet, vest, goggles, gloves, boots). A Flask backend (`wasp_backend.py`) fuses both signals through a rule-based + ML-anomaly severity gate, then hands anything serious to an LLM agent (local via Ollama or cloud via Groq) that reasons about the situation and decides whether to just log it, warn the worker, or escalate to a supervisor.
+
+Everything shows up live on a web dashboard — sensor readings, per-worker PPE status, the agent's layered risk assessment, and a running alert log — with one-click PDF incident reports.
+
+Built in 4 weeks by a 3-person team for the UTM Faculty of Artificial Intelligence Showcase 2026.
+
 ---
 
 ## :warning: Prerequisites
