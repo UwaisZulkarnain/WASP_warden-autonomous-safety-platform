@@ -10,15 +10,15 @@
 
 ## What is WASP?
 
-WASP (Warden Autonomous Safety Platform) is a virtual safety officer for construction sites. An ESP32 node streams temperature, humidity, motion and gas readings over MQTT, while a USB webcam runs YOLOv8 to check each worker's PPE (helmet, vest, goggles, gloves, boots). A Flask backend (`wasp_backend.py`) fuses both signals through a rule-based + ML-anomaly severity gate, then hands anything serious to an LLM agent (local via Ollama or cloud via Groq) that reasons about the situation and decides whether to just log it, warn the worker, or escalate to a supervisor.
+WASP (Warden Autonomous Safety Platform) monitors worker PPE and site conditions. An ESP32 publishes temperature, humidity, motion, and gas readings over MQTT, while a USB webcam and YOLOv8 check each worker's PPE (helmet, vest, goggles, gloves, and boots). The Flask backend (`wasp_backend.py`) combines these inputs with rule-based checks and ML anomaly detection. An agent using Ollama or Groq can assess events and decide whether to log them, warn the worker, or notify a supervisor.
 
-Everything shows up live on a web dashboard — sensor readings, per-worker PPE status, the agent's layered risk assessment, and a running alert log — with one-click PDF incident reports.
+The web dashboard displays live sensor readings, per-worker PPE status, risk assessments, and alert history. It also provides PDF incident report generation.
 
 Built in 4 weeks by a 3-person team for the UTM Faculty of Artificial Intelligence Showcase 2026.
 
 ---
 
-## :warning: Prerequisites
+## Prerequisites
 
 | Requirement | Version | Notes |
 |-------------|---------|-------|
@@ -30,7 +30,7 @@ Built in 4 weeks by a 3-person team for the UTM Faculty of Artificial Intelligen
 
 ---
 
-## :rocket: Quick Start
+## Quick Start
 
 ```bash
 # 1. Clone the repository
@@ -64,7 +64,7 @@ python wasp_backend.py
 
 ---
 
-## :file_folder: Project Structure
+## Project Structure
 
 ```
 WASP_warden-autonomous-safety-platform/
@@ -120,7 +120,7 @@ WASP_warden-autonomous-safety-platform/
 
 ---
 
-## :gear: Configuration
+## Configuration
 
 ### Configuration is done by editing `wasp_backend.py` directly. Key settings:
 
@@ -183,7 +183,7 @@ ML_DEMO_THRESHOLD = -0.6500    # IsolationForest anomaly threshold
 
 ---
 
-## :desktop_computer: System Architecture
+## System Architecture
 
 ```mermaid
 flowchart TB
@@ -220,20 +220,20 @@ flowchart TB
   BACKEND -.->|legacy telemetry, read-only| NODERED
 ```
 
-A themed, hover-friendly version of this diagram (with a legend) is at [`docs/architecture/wasp-system-architecture.html`](docs/architecture/wasp-system-architecture.html) — open it in a browser.
+The [standalone architecture diagram](docs/architecture/wasp-system-architecture.html) includes a legend.
 
 ---
 
-## :mag: Features
+## Features
 
-### :camera: Computer Vision
+### Computer Vision
 - **YOLOv8** PPE detection (helmet, vest, goggles, gloves, boots)
 - **Per-person spatial matching** — PPE items matched to individual bounding boxes
 - **Segment-aware verification** — adapts checks based on how much of the person is visible
 - **GPU acceleration** — CUDA auto-detection with fallback to CPU
 - **Real-time FPS counter** and GPU utilization overlay
 
-### :robot: AI Safety Agent
+### AI Safety Agent
 - **Dual LLM support**: Ollama (local) + Groq (cloud fallback)
 - **Tool calling / Function calling** — agent can:
   - Query sensor trends (`get_sensor_trend`)
@@ -246,14 +246,14 @@ A themed, hover-friendly version of this diagram (with a legend) is at [`docs/ar
 - **Severity tiers**: LOW → MEDIUM → HIGH → CRITICAL
 - **Cooldown logic** to prevent alert spam
 
-### :chart_with_upwards_trend: ML Anomaly Detection
+### ML Anomaly Detection
 - **IsolationForest** for environmental anomaly detection
 - Features: temperature, humidity, sound (mic), air quality (MQ2)
 - **Separate models** for environmental and analog sensor data
 - **LIME explanations** for interpretable anomaly detection
 - Configurable sensitivity threshold
 
-### :satellite: IoT & Sensors (ESP32)
+### IoT & Sensors (ESP32)
 - **MQTT communication** over WiFi
 - **DHT11** temperature & humidity
 - **HC-SR501** PIR motion detection
@@ -262,25 +262,25 @@ A themed, hover-friendly version of this diagram (with a legend) is at [`docs/ar
 - **Microphone** sound level
 - **Buzzer + LED** local alarms via MQTT commands
 
-### :sound: Audio / TTS
+### Audio / TTS
 - **Pre-generated Bahasa Malaysia** warning messages via gTTS
 - **Pygame** mixer for async playback
 - 13 warning variants covering all PPE combinations + heat alerts
 
-### :bar_chart: Reporting
+### Reporting
 - **Daily safety reports** at 18:00 (6 PM)
 - **JSON** raw data export (alerts, decisions, sensor peaks)
 - **Narrative TXT** — Groq-generated OSHA-style English report
 - Automatic suppression if report already generated
 
-### :floppy_disk: Database
+### Database
 - **SQLite** with two tables:
   - `alerts` — timestamped safety alerts
   - `agent_decisions` — full agent context + decision logs
 
 ---
 
-## :wrench: Hardware Requirements
+## Hardware Requirements
 
 | Component | Purpose | Notes |
 |-----------|---------|-------|
@@ -303,7 +303,7 @@ A themed, hover-friendly version of this diagram (with a legend) is at [`docs/ar
 
 ---
 
-## :hammer_and_wrench: ESP32 Setup
+## ESP32 Setup
 
 ### Camera (Seeed XIAO ESP32S3)
 
@@ -332,7 +332,7 @@ lib_deps =
 
 ---
 
-## :computer: Dashboard
+## Dashboard
 
 ### Flask Dashboard (Primary)
 
@@ -356,7 +356,7 @@ Access at: **`http://localhost:5000`**
 
 ---
 
-## :test_tube: Training the Models
+## Training the Models
 
 ### YOLOv8 PPE Detection
 
@@ -382,7 +382,7 @@ yolo detect train data=data.yaml model=yolov8n.pt epochs=100 imgsz=416
 
 ---
 
-## :book: API Endpoints
+## API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -435,7 +435,7 @@ yolo detect train data=data.yaml model=yolov8n.pt epochs=100 imgsz=416
 
 ---
 
-## :pencil: Database Schema
+## Database Schema
 
 ### `alerts` table
 
@@ -462,7 +462,7 @@ yolo detect train data=data.yaml model=yolov8n.pt epochs=100 imgsz=416
 
 ---
 
-## :bug: Troubleshooting
+## Troubleshooting
 
 ### Camera not opening
 - Check USB camera is not being used by another application
@@ -506,7 +506,7 @@ yolo detect train data=data.yaml model=yolov8n.pt epochs=100 imgsz=416
 
 ---
 
-## :white_check_mark: Pre-Run Checklist
+## Pre-Run Checklist
 
 Run `python check_env.py` before the showcase. It verifies:
 
@@ -521,13 +521,13 @@ Run `python check_env.py` before the showcase. It verifies:
 
 ---
 
-## :scroll: License
+## License
 
 This project was developed for UTM FAI Showcase 2026.
 
 ---
 
-## :handshake: Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature-name`
@@ -537,7 +537,7 @@ This project was developed for UTM FAI Showcase 2026.
 
 ---
 
-## :busts_in_silhouette: Authors
+## Authors
 
 | Role | Name |
 |------|------|
