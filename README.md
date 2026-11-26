@@ -185,72 +185,42 @@ ML_DEMO_THRESHOLD = -0.6500    # IsolationForest anomaly threshold
 
 ## :desktop_computer: System Architecture
 
+```mermaid
+flowchart TB
+  subgraph BACKEND["WASP Backend — Flask process (wasp_backend.py)"]
+    direction TB
+    CV["CV Thread (YOLOv8)<br/>Person detection · PPE check · spatial matching"]
+    SENSOR["Sensor Thread (Serial/MQTT)<br/>Temp · humidity · motion · IR/obstacle · sound · air quality"]
+    REPORT["Daily Report Thread (18:00)<br/>JSON report · narrative report (Groq)"]
+    AGENT{{"Agent Engine — WASPAgent<br/>Rule-based + Ollama/Groq + tool calling + ML anomaly detection"}}
+    DB[("Database (SQLite)<br/>alerts · agent_decisions")]
+    TTS["TTS Engine (pygame + gTTS)<br/>Pre-rendered MP3 (BM/EN)"]
+    PUB["MQTT Publisher<br/>escalation commands"]
+    DASH["Flask Web Dashboard — localhost:5000"]
+
+    CV -->|PPE + person detections| AGENT
+    SENSOR -->|sensor readings| AGENT
+    REPORT -->|daily trigger 18:00| AGENT
+    AGENT -->|writes alert + decision| DB
+    AGENT -->|voice warning BM/EN| TTS
+    AGENT -->|escalation command| PUB
+
+    CV -.->|camera feed| DASH
+    SENSOR -.->|env data| DASH
+    AGENT -.->|reasoning| DASH
+    DB -.->|alert history| DASH
+  end
+
+  ESP32["ESP32-S3 Camera (XIAO)<br/>Video stream · sensor array · buzzer/LED"]
+  BROKER["MQTT Broker — port 1883"]
+  NODERED["Node-RED Dashboard (legacy)<br/>Custom panels · flow-based logic"]
+
+  ESP32 <-->|sensors + video in · alerts out| BACKEND
+  BROKER <-->|publish / subscribe| BACKEND
+  BACKEND -.->|legacy telemetry, read-only| NODERED
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        WASP Backend (Flask)                         │
-│                         wasp_backend.py                             │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐  │
-│  │ CV Thread    │    │ Sensor Thread│    │ Daily Report Thread  │  │
-│  │ (YOLOv8)     │    │ (Serial/MQTT)│    │ (18:00 daily)        │  │
-│  │              │    │              │    │                      │  │
-│  │ - Person     │    │ - Temp       │    │ - JSON report        │  │
-│  │   detection  │    │ - Humidity   │    │ - Narrative report   │  │
-│  │ - PPE check  │    │ - Motion     │    │   (Groq-generated)   │  │
-│  │ - Spatial    │    │ - IR/Obstacle│    │                      │  │
-│  │   matching   │    │ - Sound/Mic  │    │                      │  │
-│  │              │    │ - Air Quality│    │                      │  │
-│  └──────┬───────┘    └──────┬───────┘    └──────────┬───────────┘  │
-│         │                   │                       │               │
-│         └───────────────────┼───────────────────────┘               │
-│                             │                                       │
-│                    ┌────────▼────────┐                              │
-│                    │  Agent Engine   │                              │
-│                    │  (WASPAgent)    │                              │
-│                    │                 │                              │
-│                    │  - Rule-based   │                              │
-│                    │  - Ollama/Groq  │                              │
-│                    │  - Tool calling │                              │
-│                    │  - ML anomaly   │                              │
-│                    │    detection    │                              │
-│                    └────────┬────────┘                              │
-│                             │                                       │
-│  ┌──────────┐   ┌──────────┴──────────┐    ┌───────────────────┐  │
-│  │ Database │   │     TTS Engine       │    │  MQTT Publisher   │  │
-│  │ (SQLite) │   │  (pygame + gTTS)     │    │  → ESP32 alerts   │  │
-│  │          │   │                      │    │                    │  │
-│  │ - alerts │   │ - Pre-rendered MP3   │    │                    │  │
-│  │ - agent_ │   │   warnings (BM/EN)   │    │                    │  │
-│  │   decisions│  │                      │    │                    │  │
-│  └──────────┘   └──────────────────────┘    └───────────────────┘  │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                    Flask Web Dashboard                        │  │
-│  │              http://localhost:5000                            │  │
-│  │                                                              │  │
-│  │  • Live camera feed with overlay                            │  │
-│  │  • Environmental sensors (temp, humidity, gas, motion)      │  │
-│  │  • PPE status (helmet, vest, goggles, gloves, boots)        │  │
-│  │  • AI Agent decisions & reasoning                           │  │
-│  │  • Per-person detection cards                               │  │
-│  │  • Alert history table                                      │  │
-│  │  • Ollama/Groq mode toggle                                  │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────────┘
-                              │
-               ┌────────────────┼────────────────┐
-               │                │                │
-      ┌────────▼────────┐ ┌────▼─────┐ ┌────────▼────────┐
-      │   ESP32-S3      │ │  MQTT    │ │  Node-RED        │
-      │   Camera        │ │ Broker   │ │  Dashboard       │
-      │   (XIAO)        │ │          │ │  (legacy)        │
-      │                 │ │ 1883     │ │                  │
-      │ - Video stream  │ │          │ │ - Custom panels  │
-      │ - Sensors       │ │          │ │ - Flow-based     │
-      │ - Buzzer/LED    │ │          │ │   logic          │
-      └─────────────────┘ └──────────┘ └─────────────────┘
-```
+
+A themed, hover-friendly version of this diagram (with a legend) is at [`docs/architecture/wasp-system-architecture.html`](docs/architecture/wasp-system-architecture.html) — open it in a browser.
 
 ---
 
