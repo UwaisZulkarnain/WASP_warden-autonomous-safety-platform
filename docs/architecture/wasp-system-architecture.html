@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WASP System Architecture</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+  :root{
+    --bg:#eef0f4;
+    --surface:#ffffff;
+    --surface-2:#e4e8f0;
+    --border:#c9d0dc;
+    --border-strong:#9aa4b6;
+    --ink:#161a24;
+    --muted:#565f72;
+    --faint:#848da0;
+    --line:#6b7488;
+    --accent-compute:#2353e0;
+    --accent-compute-soft:#e8edfd;
+    --accent-ai:#7c3aed;
+    --accent-ai-soft:#efe8fd;
+    --accent-data:#0a8f7f;
+    --accent-data-soft:#e2f5f1;
+    --accent-edge:#52596b;
+    --accent-edge-soft:#eceef2;
+    --chip-bg:#f4f5f8;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e1016; --surface:#171a22; --surface-2:#1b1f29; --border:#2b303c; --border-strong:#454c5e;
+      --ink:#e9ebf2; --muted:#a2aabd; --faint:#737c91; --line:#7b8296;
+      --accent-compute:#7f9bff; --accent-compute-soft:#1c2440;
+      --accent-ai:#b094fa; --accent-ai-soft:#271c42;
+      --accent-data:#36d6bd; --accent-data-soft:#113631;
+      --accent-edge:#aab2c4; --accent-edge-soft:#20232c;
+      --chip-bg:#1f2330; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1016; --surface:#171a22; --surface-2:#1b1f29; --border:#2b303c; --border-strong:#454c5e;
+    --ink:#e9ebf2; --muted:#a2aabd; --faint:#737c91; --line:#7b8296;
+    --accent-compute:#7f9bff; --accent-compute-soft:#1c2440;
+    --accent-ai:#b094fa; --accent-ai-soft:#271c42;
+    --accent-data:#36d6bd; --accent-data-soft:#113631;
+    --accent-edge:#aab2c4; --accent-edge-soft:#20232c;
+    --chip-bg:#1f2330; color-scheme: dark;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+    padding: 32px max(16px, env(safe-area-inset-right,0px)) 48px max(16px, env(safe-area-inset-left,0px));
+  }
+  main{max-width:1320px;margin:0 auto}
+  .eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-compute);margin:0 0 8px;}
+  h1{font-size:clamp(24px,3.4vw,32px);font-weight:800;letter-spacing:-.01em;margin:0 0 6px;text-wrap:balance;}
+  .sub{font-size:15.5px;color:var(--muted);margin:0 0 20px;max-width:68ch;line-height:1.55;}
+  .intro{font-size:14.5px;line-height:1.65;color:var(--ink);max-width:78ch;margin:0 0 28px;}
+  .intro b{font-weight:650}
+  figure{margin:0}
+  .diagram-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:16px;background:var(--surface);padding:4px;}
+  svg.diagram{display:block;min-width:1040px;width:100%;height:auto}
+  figcaption{margin-top:14px;font-size:13.5px;color:var(--muted);line-height:1.6;max-width:80ch;}
+  figcaption b{color:var(--ink);font-weight:650}
+  text{font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;}
+  .mono{font-family:"IBM Plex Mono","SFMono-Regular",monospace;}
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Architecture</p>
+  <h1>WASP System Architecture</h1>
+  <p class="sub">Warden Autonomous Safety Platform — backend process, agent reasoning, and the hardware and legacy services it talks to.</p>
+  <p class="intro">
+    The Flask backend runs three always-on threads against one shared agent: a <b>computer-vision thread</b> checks PPE compliance, a <b>sensor thread</b> watches the environment, and a <b>scheduled thread</b> compiles a daily report. All three hand their findings to the <b>agent engine</b>, which decides whether to log the event, speak a warning, or escalate — writing to SQLite, driving text-to-speech, and publishing alert commands back to the site hardware over MQTT.
+  </p>
+  <figure>
+    <div class="diagram-scroll">
+      <svg class="diagram" viewBox="0 0 1440 1000" role="img" aria-label="WASP architecture: an ESP32 edge device and MQTT broker feed a Flask backend; its CV, sensor and daily-report threads converge on an agent engine, which writes to SQLite, speaks warnings via TTS, and publishes alerts back to the ESP32 and a legacy Node-RED dashboard, while a web dashboard reads live state from the whole pipeline.">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--line)"/>
+          </marker>
+          <marker id="arrowFaint" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--faint)"/>
+          </marker>
+        </defs>
+        <rect x="40" y="50" width="1360" height="650" rx="20" fill="var(--surface-2)" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="7 6"/>
+        <rect x="64" y="34" width="356" height="32" rx="8" fill="var(--surface)" stroke="var(--border-strong)" stroke-width="1.2"/>
+        <text x="80" y="55" font-size="12.5" font-weight="700" letter-spacing=".03em" fill="var(--ink)">WASP BACKEND</text>
+        <text x="190" y="55" font-size="12.5" fill="var(--muted)" class="mono">· wasp_backend.py</text>
+
+        <g>
+          <rect x="90" y="130" width="270" height="150" rx="14" fill="var(--surface)" stroke="var(--border-strong)" stroke-width="1.4"/>
+          <rect x="98" y="138" width="4" height="134" rx="2" fill="var(--accent-compute)"/>
+          <text x="118" y="156" font-size="10.5" font-weight="700" letter-spacing=".07em" fill="var(--accent-compute)">YOLOV8</text>
+          <text x="118" y="180" font-size="16.5" font-weight="700" fill="var(--ink)">CV Thread</text>
+          <text x="118" y="206" font-size="12.2" fill="var(--muted)">Person detection</text>
+          <text x="118" y="226" font-size="12.2" fill="var(--muted)">PPE check</text>
+          <text x="118" y="246" font-size="12.2" fill="var(--muted)">Spatial matching</text>
+        </g>
+        <g>
+          <rect x="390" y="130" width="270" height="150" rx="14" fill="var(--surface)" stroke="var(--border-strong)" stroke-width="1.4"/>
+          <rect x="398" y="138" width="4" height="134" rx="2" fill="var(--accent-compute)"/>
+          <text x="418" y="156" font-size="10.5" font-weight="700" letter-spacing=".07em" fill="var(--accent-compute)">SERIAL / MQTT</text>
+          <text x="418" y="180" font-size="16.5" font-weight="700" fill="var(--ink)">Sensor Thread</text>
+          <text x="418" y="206" font-size="12.2" fill="var(--muted)">Temp · humidity · motion</text>
+          <text x="418" y="226" font-size="12.2" fill="var(--muted)">IR / obstacle · sound</text>
+          <text x="418" y="246" font-size="12.2" fill="var(--muted)">Air quality</text>
+        </g>
+        <g>
+          <rect x="690" y="130" width="270" height="150" rx="14" fill="var(--surface)" stroke="var(--border-strong)" stroke-width="1.4"/>
+          <rect x="698" y="138" width="4" height="134" rx="2" fill="var(--accent-compute)"/>
+          <text x="718" y="156" font-size="10.5" font-weight="700" letter-spacing=".07em" fill="var(--accent-compute)">SCHEDULED · 18:00</text>
+          <text x="718" y="180" font-size="16.5" font-weight="700" fill="var(--ink)">Daily Report Thread</text>
+          <text x="718" y="206" font-size="12.2" fill="var(--muted)">JSON report</text>
+          <text x="718" y="226" font-size="12.2" fill="var(--muted)">Narrative report (Groq)</text>
+        </g>
+
+        <circle cx="225" cy="300" r="3.2" fill="var(--line)"/>
+        <circle cx="525" cy="310" r="3.2" fill="var(--line)"/>
+        <line x1="225" y1="300" x2="985" y2="300" stroke="var(--faint)" stroke-width="1.3"/>
+        <line x1="525" y1="280" x2="525" y2="310" stroke="var(--faint)" stroke-width="1.3"/>
+        <line x1="525" y1="310" x2="985" y2="310" stroke="var(--faint)" stroke-width="1.3"/>
+        <line x1="850" y1="390" x2="985" y2="390" stroke="var(--faint)" stroke-width="1.3"/>
+        <line x1="225" y1="630" x2="225" y2="650" stroke="var(--faint)" stroke-width="1.3"/>
+        <line x1="225" y1="650" x2="985" y2="650" stroke="var(--faint)" stroke-width="1.3"/>
+        <line x1="985" y1="300" x2="985" y2="650" stroke="var(--faint)" stroke-width="1.3"/>
+        <line x1="985" y1="475" x2="1010" y2="475" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <line x1="225" y1="280" x2="225" y2="320" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)"/>
+        <line x1="525" y1="280" x2="525" y2="320" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)"/>
+        <line x1="825" y1="280" x2="825" y2="320" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)"/>
+        <rect x="178" y="291" width="150" height="18" rx="4" fill="var(--surface)"/>
+        <text x="253" y="304" font-size="11" text-anchor="middle" fill="var(--muted)">PPE + person detections</text>
+        <rect x="560" y="291" width="112" height="18" rx="4" fill="var(--surface)"/>
+        <text x="616" y="304" font-size="11" text-anchor="middle" fill="var(--muted)">sensor readings</text>
+        <rect x="770" y="291" width="128" height="18" rx="4" fill="var(--surface)"/>
+        <text x="834" y="304" font-size="11" text-anchor="middle" fill="var(--muted)">daily trigger (18:00)</text>
+
+        <rect x="200" y="320" width="650" height="140" rx="18" fill="var(--accent-ai-soft)" stroke="var(--accent-ai)" stroke-width="2"/>
+        <text x="228" y="357" font-size="10.5" font-weight="700" letter-spacing=".07em" fill="var(--accent-ai)">AGENT CORE</text>
+        <text x="228" y="384" font-size="20" font-weight="800" fill="var(--ink)">Agent Engine</text>
+        <text x="228" y="404" font-size="12" fill="var(--muted)" class="mono">WASPAgent</text>
+        <g font-size="12" font-weight="600" fill="var(--ink)">
+          <rect x="460" y="343" width="165" height="34" rx="17" fill="var(--surface)" stroke="var(--accent-ai)" stroke-width="1.2"/>
+          <text x="542" y="364" text-anchor="middle">Rule-based</text>
+          <rect x="635" y="343" width="165" height="34" rx="17" fill="var(--surface)" stroke="var(--accent-ai)" stroke-width="1.2"/>
+          <text x="717" y="364" text-anchor="middle">Ollama / Groq</text>
+          <rect x="460" y="387" width="165" height="34" rx="17" fill="var(--surface)" stroke="var(--accent-ai)" stroke-width="1.2"/>
+          <text x="542" y="408" text-anchor="middle">Tool calling</text>
+          <rect x="635" y="387" width="165" height="34" rx="17" fill="var(--surface)" stroke="var(--accent-ai)" stroke-width="1.2"/>
+          <text x="717" y="408" text-anchor="middle">ML anomaly detection</text>
+        </g>
+
+        <line x1="225" y1="460" x2="225" y2="500" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)"/>
+        <line x1="525" y1="460" x2="525" y2="500" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)"/>
+        <line x1="825" y1="460" x2="825" y2="500" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)"/>
+        <rect x="150" y="471" width="150" height="18" rx="4" fill="var(--surface)"/>
+        <text x="225" y="484" font-size="11" text-anchor="middle" fill="var(--muted)">writes alert + decision</text>
+        <rect x="462" y="471" width="126" height="18" rx="4" fill="var(--surface)"/>
+        <text x="525" y="484" font-size="11" text-anchor="middle" fill="var(--muted)">voice warning (BM/EN)</text>
+        <rect x="760" y="471" width="130" height="18" rx="4" fill="var(--surface)"/>
+        <text x="825" y="484" font-size="11" text-anchor="middle" fill="var(--muted)">escalation command</text>
+
+        <g>
+          <rect x="90" y="500" width="270" height="130" rx="14" fill="var(--surface)" stroke="var(--border-strong)" stroke-width="1.4"/>
+          <rect x="98" y="508" width="4" height="114" rx="2" fill="var(--accent-data)"/>
+          <text x="118" y="526" font-size="10.5" font-weight="700" letter-spacing=".07em" fill="var(--accent-data)">SQLITE</text>
+          <text x="118" y="550" font-size="16.5" font-weight="700" fill="var(--ink)">Database</text>
+          <text x="118" y="576" font-size="12.2" fill="var(--muted)" class="mono">alerts</text>
+          <text x="118" y="596" font-size="12.2" fill="var(--muted)" class="mono">agent_decisions</text>
+        </g>
+        <g>
+          <rect x="390" y="500" width="270" height="130" rx="14" fill="var(--surface)" stroke="var(--border-strong)" stroke-width="1.4"/>
+          <rect x="398" y="508" width="4" height="114" rx="2" fill="var(--accent-data)"/>
+          <text x="418" y="526" font-size="10.5" font-weight="700" letter-spacing=".07em" fill="var(--accent-data)">PYGAME + GTTS</text>
+          <text x="418" y="550" font-size="16.5" font-weight="700" fill="var(--ink)">TTS Engine</text>
+          <text x="418" y="576" font-size="12.2" fill="var(--muted)">Pre-rendered MP3</text>
+          <text x="418" y="596" font-size="12.2" fill="var(--muted)">Bahasa Melayu / English</text>
+        </g>
+        <g>
+          <rect x="690" y="500" width="270" height="130" rx="14" fill="var(--surface)" stroke="var(--border-strong)" stroke-width="1.4"/>
+          <rect x="698" y="508" width="4" height="114" rx="2" fill="var(--accent-data)"/>
+          <text x="718" y="526" font-size="10.5" font-weight="700" letter-spacing=".07em" fill="var(--accent-data)">→ ESP32 ALERTS</text>
+          <text x="718" y="550" font-size="16.5" font-weight="700" fill="var(--ink)">MQTT Publisher</text>
+          <text x="718" y="576" font-size="12.2" fill="var(--muted)">Escalation commands</text>
+          <text x="718" y="596" font-size="12.2" fill="var(--muted)">Buzzer / LED triggers</text>
+        </g>
+
+        <rect x="1010" y="130" width="350" height="500" rx="16" fill="var(--surface)" stroke="var(--border-strong)" stroke-width="1.6"/>
+        <rect x="1010" y="130" width="350" height="6" rx="3" fill="var(--ink)" opacity="0.14"/>
+        <text x="1034" y="162" font-size="10.5" font-weight="700" letter-spacing=".07em" fill="var(--muted)" class="mono">LOCALHOST:5000</text>
+        <text x="1034" y="188" font-size="17.5" font-weight="700" fill="var(--ink)">Flask Web Dashboard</text>
+        <circle cx="1038" cy="206" r="4" fill="var(--accent-data)"/>
+        <text x="1050" y="210" font-size="10.5" font-weight="700" letter-spacing=".06em" fill="var(--accent-data)">LIVE</text>
+        <g font-size="12.3" fill="var(--ink)">
+          <rect x="1034" y="234" width="6" height="6" fill="var(--accent-compute)"/>
+          <text x="1050" y="241">Live camera feed + overlay</text>
+          <rect x="1034" y="270" width="6" height="6" fill="var(--accent-compute)"/>
+          <text x="1050" y="277">Environmental sensors (gas, temp, motion)</text>
+          <rect x="1034" y="306" width="6" height="6" fill="var(--accent-compute)"/>
+          <text x="1050" y="313">Per-worker PPE status</text>
+          <rect x="1034" y="342" width="6" height="6" fill="var(--accent-ai)"/>
+          <text x="1050" y="349">Agent decisions &amp; reasoning</text>
+          <rect x="1034" y="378" width="6" height="6" fill="var(--accent-compute)"/>
+          <text x="1050" y="385">Per-person detection cards</text>
+          <rect x="1034" y="414" width="6" height="6" fill="var(--accent-data)"/>
+          <text x="1050" y="421">Alert history table</text>
+          <rect x="1034" y="450" width="6" height="6" fill="var(--accent-ai)"/>
+          <text x="1050" y="457">Ollama / Groq mode toggle</text>
+        </g>
+
+        <line x1="720" y1="700" x2="720" y2="730" stroke="var(--line)" stroke-width="2"/>
+        <line x1="720" y1="730" x2="300" y2="730" stroke="var(--line)" stroke-width="2"/>
+        <line x1="300" y1="730" x2="300" y2="770" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+        <line x1="720" y1="730" x2="720" y2="770" stroke="var(--line)" stroke-width="2" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+        <line x1="720" y1="730" x2="1140" y2="730" stroke="var(--border-strong)" stroke-width="2" stroke-dasharray="7 5"/>
+        <line x1="1140" y1="730" x2="1140" y2="770" stroke="var(--border-strong)" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#arrowFaint)"/>
+
+        <rect x="412" y="712" width="206" height="18" rx="4" fill="var(--surface)"/>
+        <text x="515" y="725" font-size="11" text-anchor="middle" fill="var(--muted)">sensors + video in · alerts out</text>
+        <rect x="734" y="742" width="192" height="18" rx="4" fill="var(--surface)"/>
+        <text x="830" y="755" font-size="11" text-anchor="middle" fill="var(--muted)">publish / subscribe · 1883</text>
+        <rect x="846" y="712" width="188" height="18" rx="4" fill="var(--surface)"/>
+        <text x="940" y="725" font-size="11" text-anchor="middle" fill="var(--faint)">legacy telemetry (read-only)</text>
+
+        <g>
+          <rect x="140" y="770" width="320" height="120" rx="14" fill="var(--accent-edge-soft)" stroke="var(--border-strong)" stroke-width="1.4"/>
+          <rect x="148" y="778" width="4" height="104" rx="2" fill="var(--accent-edge)"/>
+          <text x="168" y="796" font-size="10.5" font-weight="700" letter-spacing=".07em" fill="var(--accent-edge)">SEEED XIAO · EDGE DEVICE</text>
+          <text x="168" y="819" font-size="15.5" font-weight="700" fill="var(--ink)">ESP32-S3 Camera</text>
+          <text x="168" y="842" font-size="12" fill="var(--muted)">Video stream · sensor array</text>
+          <text x="168" y="862" font-size="12" fill="var(--muted)">Buzzer / LED driver</text>
+        </g>
+        <g>
+          <rect x="560" y="770" width="320" height="120" rx="14" fill="var(--accent-edge-soft)" stroke="var(--border-strong)" stroke-width="1.4"/>
+          <rect x="568" y="778" width="4" height="104" rx="2" fill="var(--accent-edge)"/>
+          <text x="588" y="796" font-size="10.5" font-weight="700" letter-spacing=".07em" fill="var(--accent-edge)">MESSAGE BUS</text>
+          <text x="588" y="819" font-size="15.5" font-weight="700" fill="var(--ink)">MQTT Broker</text>
+          <text x="588" y="842" font-size="12" fill="var(--muted)" class="mono">port 1883</text>
+          <text x="588" y="862" font-size="12" fill="var(--muted)">Publish / subscribe</text>
+        </g>
+        <g>
+          <rect x="980" y="770" width="320" height="120" rx="14" fill="var(--surface)" stroke="var(--border-strong)" stroke-width="1.4" stroke-dasharray="6 5"/>
+          <rect x="988" y="778" width="4" height="104" rx="2" fill="var(--faint)"/>
+          <text x="1008" y="796" font-size="10.5" font-weight="700" letter-spacing=".07em" fill="var(--faint)">LEGACY</text>
+          <text x="1008" y="819" font-size="15.5" font-weight="700" fill="var(--muted)">Node-RED Dashboard</text>
+          <text x="1008" y="842" font-size="12" fill="var(--faint)">Custom panels</text>
+          <text x="1008" y="862" font-size="12" fill="var(--faint)">Flow-based logic</text>
+        </g>
+
+        <g font-size="12" fill="var(--muted)">
+          <rect x="140" y="930" width="14" height="14" rx="3" fill="var(--accent-compute)"/>
+          <text x="162" y="941">Processing thread</text>
+          <rect x="340" y="930" width="14" height="14" rx="3" fill="var(--accent-ai)"/>
+          <text x="362" y="941">AI agent core</text>
+          <rect x="500" y="930" width="14" height="14" rx="3" fill="var(--accent-data)"/>
+          <text x="522" y="941">Data / storage</text>
+          <rect x="660" y="930" width="14" height="14" rx="3" fill="var(--accent-edge)"/>
+          <text x="682" y="941">Edge &amp; external</text>
+          <line x1="840" y1="937" x2="876" y2="937" stroke="var(--line)" stroke-width="2.4"/>
+          <text x="886" y="941">Primary data flow</text>
+          <line x1="1040" y1="937" x2="1076" y2="937" stroke="var(--faint)" stroke-width="1.6"/>
+          <text x="1086" y="941">Dashboard feed</text>
+          <line x1="1220" y1="937" x2="1256" y2="937" stroke="var(--border-strong)" stroke-width="2.2" stroke-dasharray="6 4"/>
+          <text x="1266" y="941" fill="var(--faint)">Legacy</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>
+      <b>Reading it:</b> a PPE or environmental anomaly travels left to right through the ingestion threads into the agent engine, which decides to log, speak, or escalate; the dashboard (right) reads live state from that same pipeline rather than sitting at the end of it.
+    </figcaption>
+  </figure>
+</main>
+</body>
+</html>
